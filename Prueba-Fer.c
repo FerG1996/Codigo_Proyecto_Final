@@ -42,7 +42,7 @@ int main(void)
 	int RetCode = 0;
 	FILE *fp;																	//Descriptor de archivo que usaremos para guardar los datos en un archivo
 	FILE *fp1;
-	int CantMuestras = 5;																	//Cantidad de muestras a leer por cada canal (Deberá ser un parámetro que ingrese el usuario)
+	int CantMuestras = 20;																	//Cantidad de muestras a leer por cada canal (Deberá ser un parámetro que ingrese el usuario)
 	uint8_t *Channels = malloc(NChannels * sizeof(uint8_t));					//Arreglo dinámico con la cantidad de canales a leer
 	uint8_t Ch;
 	for (Ch = 0; Ch < NChannels; Ch++)											//Rellenamos el arreglo con los nros que representan a cada canal, de 0 a 7 (NbChannels-1). ¿Se podría hacer con 
@@ -57,6 +57,8 @@ int main(void)
 	double stdev[8]={0,0,0,0,0,0,0,0};											//Desviación estandar de cada canal
 	int n=0;																	//Contador de iteraciones del bucle
 	
+	uint64_t tiempo = 0;												//Variable entera sin signo de 64 bits donde guardaremos el tiempo de la muestra del canal 0
+	//time_t tiempo = 0;
 	while (1 == 1)
 	{
 
@@ -69,53 +71,58 @@ int main(void)
 			break;
 		}
 		printf("init done !\r\n");
-		fp=fopen("Lectura.xls","a+");
-		
+		printf("clocks por seg = %ld\r\n",CLOCKS_PER_SEC);
+		fp=fopen("Lectura.ods","a+");
+		fprintf(fp,"Canal 0 (uV)	Canal 1 (uV)	Canal 2 (uV)	Canal 3 (uV)	Canal 4 (uV)	Canal 5 (uV)	Canal 6 (uV)	Canal 7 (uV)	Tiempo (uS)\r\n"); 		//Encabezado de columnas en el excel
 		//fp=fopen("Lectura.txt","a");																							//Adjuntamos un archivo de nombre "Lectura", para escritura. Se crea si no existe
 		//fp = fopen("/home/Desktop/Archivos/libreria/RaspberryPi-ADC-DAC-master/Repo/Codigo_Proyecto_Final", "Lecturas");		//Abrimos un archivo de nombre "Lectura" en la ruta especificada
 		int Loop;
+		int cont;
 		
 		for (Loop = 0; Loop < CantMuestras; Loop++)										
 		{
 			int32_t *AdcValues = NULL;																		//Arreglo dinámico donde guardaremos los valores leidos de cada canal(se rellena con los argumentos pasados en ReadAdcValues
+			tiempo = clock();																			//Devuelve la cantidad de pulsos de reloj desde que se inició el proceso
+			//tiempo = time(NULL);																			//Devuelve la fecha y hora actual o -1 en caso de error
 			ADS1256_ReadAdcValues(&Channels, NChannels, SINGLE_ENDED_INPUTS_8, &AdcValues);				//Pasamos el arreglo con los canales a leer, la cant. de canales, el modo (singular o diferencial) y el arreglo 
 																											//donde guardar los valores leidos
-			double *volt = ADS1256_AdcArrayToMicroVolts(AdcValues, NChannels, 1000.0 / 1000000.0);			//Pasamos a volts los valores leidos (esto lo podemos realizar en un excel una vez que saquemos los datos para poder
+			double *volt = ADS1256_AdcArrayToMicroVolts(AdcValues, NChannels, 1000000.0 / 1000000.0);			//Pasamos a volts los valores leidos (esto lo podemos realizar en un excel una vez que saquemos los datos para poder
 																											//reducir los ciclos de procesamiento del procesador
 			
-			fprintf(fp,"0 : %f V   1 : %f V   2 : %f V   3 : %f V   4 : %f V   5 : %f V   6 : %f V   7 : %f V \r\n", 		//Imprimimos los valores del arreglo en el archivo (Probar)
-				   volt[0], volt[1], volt[2], volt[3], volt[4], volt[5], volt[6], volt[7]);  
+			fprintf(fp,"%f	%f	%f	%f	%f	%f	%f	%f	%f\r\n", 		//Imprimimos los valores del arreglo en el archivo (Probar)
+				   volt[0], volt[1], volt[2], volt[3], volt[4], volt[5], volt[6], volt[7], tiempo/(double)CLOCKS_PER_SEC);   //(double)CLOCKS_PER_SEC
 			//printf("0 : %f V   1 : %f V   2 : %f V   3 : %f V   4 : %f V   5 : %f V   6 : %f V   7 : %f V \r\n",		//Mostrar los datos por puerto serie
 			//	   volt[0], volt[1], volt[2], volt[3], volt[4], volt[5], volt[6], volt[7]);
 
 			//DAC8552_Write(channel_A, Voltage_Convert(5.0, volt[0]));										//Funcion para escribir en una salida el valor leido por el canal 0
-		n++;																								////Calculo de la media, el delta y la distancia al cuadrado de cada canal////
-		for (Loop = 0; Loop < NChannels; Loop++)										
+		n++;
+		printf("n= %i\n",n);																								////Calculo de la media, el delta y la distancia al cuadrado de cada canal////
+		for (cont = 0; cont < NChannels; cont++)										
 		{
-			delta[Loop]=volt[Loop]-media[Loop];
+			delta[cont]=volt[cont]-media[cont];
 			
 		}
 		
-		for (Loop = 0; Loop < NChannels; Loop++)										
+		for (cont = 0; cont < NChannels; cont++)										
 		{
-			media[Loop]+=delta[Loop]/n;
+			media[cont]+=delta[cont]/n;
 		}
 		
-		for (Loop = 0; Loop < NChannels; Loop++)										
+		for (cont = 0; cont < NChannels; cont++)										
 		{
-			m2[Loop]+=(delta[Loop]*(volt[Loop]-media[Loop]));
-			printf("m2= %lf\n",m2[0]);
+			m2[cont]+=(delta[cont]*(volt[cont]-media[cont]));
+		//	printf("m2= %lf\n",m2[0]);
 		}
 		
-		for (Loop = 0; Loop < NChannels; Loop++)										
+		for (cont = 0; cont < NChannels; cont++)										
 		{
-		varianza[Loop]=m2[Loop]/((double)n-1);
-		printf("var= %lf\n",varianza[0]);
+		varianza[cont]=m2[cont]/((double)n-1);
+		//printf("var= %lf\n",varianza[0]);
 		//printf("aca llega!\r\n");
 		}	
-		for (Loop = 0; Loop < NChannels; Loop++)										
+		for (cont = 0; cont < NChannels; cont++)										
 		{
-		stdev[Loop]= sqrt(varianza[Loop]);
+		stdev[cont]= sqrt(varianza[cont]);
 		}
 		
 		bsp_DelayUS(500000);	
@@ -123,7 +130,7 @@ int main(void)
 		free(volt);																		//Espera activa de 0,5 segundos = 500000 uS
 		}
 		fclose(fp);																							//Cerramos el descriptor de archivo
-		
+		printf("aca llega!\r\n");
 		printf("ADC_DAC_Close\r\n");
 		int CloseCode = ADC_DAC_Close();																	//Finalizamos la comunicación SPI y ponemos al conversor en standby
 		if (CloseCode != 0)
@@ -132,10 +139,10 @@ int main(void)
 			break;
 		}
 		
-		MainLoop++;
+		MainLoop=1;
 
 		//This loop proves that you can close and re-init pacefully the librairie. Prove it several times (e.g. 3) and then finish the code.
-		if (MainLoop >= 3)
+		if (MainLoop == 1)
 			break;
 			//break;
 		
