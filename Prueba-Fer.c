@@ -42,6 +42,7 @@ int main(void)
 	int RetCode = 0;
 	FILE *fp;																	//Descriptor de archivo que usaremos para guardar los datos en un archivo
 	FILE *fp1;
+	struct timeval start; //end, total;											//Estructuras donde guardaremos el tiempo
 	int CantMuestras = 20;																	//Cantidad de muestras a leer por cada canal (Deberá ser un parámetro que ingrese el usuario)
 	uint8_t *Channels = malloc(NChannels * sizeof(uint8_t));					//Arreglo dinámico con la cantidad de canales a leer
 	uint8_t Ch;
@@ -50,21 +51,21 @@ int main(void)
 		*(Channels + Ch) = Ch;
 	}
 
-	double media[8]={0,0,0,0,0,0,0,0};											//Arreglo donde guardaremos la media de cada canal
+	/*double media[8]={0,0,0,0,0,0,0,0};											//Arreglo donde guardaremos la media de cada canal
 	double m2[8]={0,0,0,0,0,0,0,0};												//Distancia al cuadrado de cada muestra a la media	
 	double delta[8]={0,0,0,0,0,0,0,0};											//Distancia de cada muestra a la media
 	double varianza[8]={0,0,0,0,0,0,0,0};										//Varianza de cada canal
-	double stdev[8]={0,0,0,0,0,0,0,0};											//Desviación estandar de cada canal
+	double stdev[8]={0,0,0,0,0,0,0,0};		*/									//Desviación estandar de cada canal
 	int n=0;																	//Contador de iteraciones del bucle
 	
-	uint64_t tiempo = 0;												//Variable entera sin signo de 64 bits donde guardaremos el tiempo de la muestra del canal 0
+	//uint64_t tiempo = 0;												//Variable entera sin signo de 64 bits donde guardaremos el tiempo de la muestra del canal 0
 	//time_t tiempo = 0;
 	while (1 == 1)
 	{
 
 		printf("ADC_DAC_Init\r\n");
 		int Id = 0;
-		int Init = ADC_DAC_Init(&Id, ADS1256_GAIN_1, ADS1256_100SPS);			//Inicializamos el ADC. En Id obtenemos el numero de identificación del chip que debería ser igual a 3.
+		int Init = ADC_DAC_Init(&Id, ADS1256_GAIN_1, ADS1256_30000SPS);			//Inicializamos el ADC. En Id obtenemos el numero de identificación del chip que debería ser igual a 3.
 		if (Init != 0)															//Elegimos ganancia igual a 1 y frecuencia de muestreo igual a 100 m/s
 		{
 			RetCode = -1;
@@ -73,30 +74,31 @@ int main(void)
 		printf("init done !\r\n");
 		printf("clocks por seg = %ld\r\n",CLOCKS_PER_SEC);
 		fp=fopen("Lectura.ods","a+");
-		fprintf(fp,"Canal 0 (uV)	Canal 1 (uV)	Canal 2 (uV)	Canal 3 (uV)	Canal 4 (uV)	Canal 5 (uV)	Canal 6 (uV)	Canal 7 (uV)	Tiempo (uS)\r\n"); 		//Encabezado de columnas en el excel
+		fprintf(fp,"Canal 0 (uV)	Canal 1 (uV)	Canal 2 (uV)	Canal 3 (uV)	Canal 4 (uV)	Canal 5 (uV)	Canal 6 (uV)	Canal 7 (uV)	Tiempo (S) +	uS \r\n"); 		//Encabezado de columnas en el excel
 		//fp=fopen("Lectura.txt","a");																							//Adjuntamos un archivo de nombre "Lectura", para escritura. Se crea si no existe
 		//fp = fopen("/home/Desktop/Archivos/libreria/RaspberryPi-ADC-DAC-master/Repo/Codigo_Proyecto_Final", "Lecturas");		//Abrimos un archivo de nombre "Lectura" en la ruta especificada
 		int Loop;
-		int cont;
+		//int cont;
 		
 		for (Loop = 0; Loop < CantMuestras; Loop++)										
 		{
 			int32_t *AdcValues = NULL;																		//Arreglo dinámico donde guardaremos los valores leidos de cada canal(se rellena con los argumentos pasados en ReadAdcValues
-			tiempo = clock();																			//Devuelve la cantidad de pulsos de reloj desde que se inició el proceso
+			//tiempo = clock();																			//Devuelve la cantidad de pulsos de reloj desde que se inició el proceso
 			//tiempo = time(NULL);																			//Devuelve la fecha y hora actual o -1 en caso de error
+			gettimeofday(&start, NULL);      																// Guardamos el tiempo en la estructura start
 			ADS1256_ReadAdcValues(&Channels, NChannels, SINGLE_ENDED_INPUTS_8, &AdcValues);				//Pasamos el arreglo con los canales a leer, la cant. de canales, el modo (singular o diferencial) y el arreglo 
 																											//donde guardar los valores leidos
 			double *volt = ADS1256_AdcArrayToMicroVolts(AdcValues, NChannels, 1000000.0 / 1000000.0);			//Pasamos a volts los valores leidos (esto lo podemos realizar en un excel una vez que saquemos los datos para poder
 																											//reducir los ciclos de procesamiento del procesador
 			
-			fprintf(fp,"%f	%f	%f	%f	%f	%f	%f	%f	%f\r\n", 		//Imprimimos los valores del arreglo en el archivo (Probar)
-				   volt[0], volt[1], volt[2], volt[3], volt[4], volt[5], volt[6], volt[7], tiempo/(double)CLOCKS_PER_SEC);   //(double)CLOCKS_PER_SEC
+			fprintf(fp,"%f	%f	%f	%f	%f	%f	%f	%f	%ld	%ld\r\n", 		//Imprimimos los valores del arreglo en el archivo 
+				   volt[0], volt[1], volt[2], volt[3], volt[4], volt[5], volt[6], volt[7], start.tv_sec, start.tv_usec );   //   tiempo/(double)CLOCKS_PER_SEC
 			//printf("0 : %f V   1 : %f V   2 : %f V   3 : %f V   4 : %f V   5 : %f V   6 : %f V   7 : %f V \r\n",		//Mostrar los datos por puerto serie
 			//	   volt[0], volt[1], volt[2], volt[3], volt[4], volt[5], volt[6], volt[7]);
 
 			//DAC8552_Write(channel_A, Voltage_Convert(5.0, volt[0]));										//Funcion para escribir en una salida el valor leido por el canal 0
 		n++;
-		printf("n= %i\n",n);																								////Calculo de la media, el delta y la distancia al cuadrado de cada canal////
+		/*printf("n= %i\n",n);																								////Calculo de la media, el delta y la distancia al cuadrado de cada canal////
 		for (cont = 0; cont < NChannels; cont++)										
 		{
 			delta[cont]=volt[cont]-media[cont];
@@ -124,8 +126,8 @@ int main(void)
 		{
 		stdev[cont]= sqrt(varianza[cont]);
 		}
-		
-		bsp_DelayUS(500000);	
+		*/
+		//bsp_DelayUS(500000);	
 		free(AdcValues);																				//Así como inicializamos los arreglos dinamicos y reservamos memoria, tambien debemos liberar esa memoria reservada
 		free(volt);																		//Espera activa de 0,5 segundos = 500000 uS
 		}
@@ -149,7 +151,7 @@ int main(void)
 	}
 	
 	fp1=fopen("desviacion estandar.xls","a+");
-	fprintf(fp1,"Desviación estandar: \n Canal 0: %f\n Canal 1: %f\n Canal 2: %f\n Canal 3: %f\n Canal 4: %f\n Canal 5: %f\n Canal 6: %f\n Canal 7: %f\n",stdev[0],stdev[1],stdev[2],stdev[3],stdev[4],stdev[5],stdev[6],stdev[7]);
+	//fprintf(fp1,"Desviación estandar: \n Canal 0: %f\n Canal 1: %f\n Canal 2: %f\n Canal 3: %f\n Canal 4: %f\n Canal 5: %f\n Canal 6: %f\n Canal 7: %f\n",stdev[0],stdev[1],stdev[2],stdev[3],stdev[4],stdev[5],stdev[6],stdev[7]);
 	fclose(fp1);	
 	printf("Test ADDA finished with returned code %d\r\n", RetCode);
 	
