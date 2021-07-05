@@ -24,6 +24,36 @@
  * 
  * @return int 
  */
+
+int lectura(int NbChannels, int AdcValues[][8], ADS1256_SCAN_MODE mode, int loop)
+{
+	
+	int i;
+	for (i = 0; i < NbChannels; i++)
+	{
+		ADS1256_WaitDRDY_LOW();
+		
+		uint8_t CurChannel = i;
+		
+		if (mode == SINGLE_ENDED_INPUTS_8)
+			ADS1256_SetChannel(CurChannel);
+		else
+			ADS1256_SetDiffChannel(CurChannel);
+		
+		bsp_DelayUS(MASTER_CLOCK_PERIOD_USEC_TIMES_24);
+		
+		ADS1256_WriteCmd(CMD_SYNC);
+		bsp_DelayUS(MASTER_CLOCK_PERIOD_USEC_TIMES_24);
+		
+		ADS1256_WriteCmd(CMD_WAKEUP);
+		bsp_DelayUS(MASTER_CLOCK_PERIOD_USEC_TIMES_24);
+		
+		AdcValues[loop][i] = ADS1256_ReadData();
+	}
+	
+	return 0;
+}
+
 int main(void)
 {
 	printf("Iniciando prueba\r\n");
@@ -42,21 +72,16 @@ int main(void)
 	int RetCode = 0;
 	FILE *fp;																	//Descriptor de archivo que usaremos para guardar los datos en un archivo
 	FILE *fp1;
-	struct timeval start; //end, total;											//Estructuras donde guardaremos el tiempo
-	int CantMuestras = 20;																	//Cantidad de muestras a leer por cada canal (Deberá ser un parámetro que ingrese el usuario)
-	uint8_t *Channels = malloc(NChannels * sizeof(uint8_t));					//Arreglo dinámico con la cantidad de canales a leer
-	uint8_t Ch;
-	for (Ch = 0; Ch < NChannels; Ch++)											//Rellenamos el arreglo con los nros que representan a cada canal, de 0 a 7 (NbChannels-1). ¿Se podría hacer con 
-	{																			//una simple constante que se incremente cada vez que se quiera cambiar de canal?
-		*(Channels + Ch) = Ch;
-	}
+	struct timeval start;														//Estructuras donde guardaremos el tiempo
+	int64_t tiempo[1000][2];													//Matriz donde guardaremos el tiempo en segundos y microsegundos
+	int CantMuestras = 20;														//Cantidad de muestras a leer por cada canal (Deberá ser un parámetro que ingrese el usuario)
 
 	/*double media[8]={0,0,0,0,0,0,0,0};											//Arreglo donde guardaremos la media de cada canal
 	double m2[8]={0,0,0,0,0,0,0,0};												//Distancia al cuadrado de cada muestra a la media	
 	double delta[8]={0,0,0,0,0,0,0,0};											//Distancia de cada muestra a la media
 	double varianza[8]={0,0,0,0,0,0,0,0};										//Varianza de cada canal
-	double stdev[8]={0,0,0,0,0,0,0,0};		*/									//Desviación estandar de cada canal
-	int n=0;																	//Contador de iteraciones del bucle
+	double stdev[8]={0,0,0,0,0,0,0,0};					*/						//Desviación estandar de cada canal
+//	int n=0;																	//Contador de iteraciones del bucle
 	
 	//uint64_t tiempo = 0;												//Variable entera sin signo de 64 bits donde guardaremos el tiempo de la muestra del canal 0
 	//time_t tiempo = 0;
@@ -79,57 +104,26 @@ int main(void)
 		//fp = fopen("/home/Desktop/Archivos/libreria/RaspberryPi-ADC-DAC-master/Repo/Codigo_Proyecto_Final", "Lecturas");		//Abrimos un archivo de nombre "Lectura" en la ruta especificada
 		int Loop;
 		//int cont;
+		int32_t AdcValues[1000][8];															//Arreglo donde guardaremos los valores leidos de cada canal(se rellena con los argumentos pasados en ReadAdcValues
+		//int32_t *AdcValues = NULL;
+		for (Loop = 0; Loop < CantMuestras; Loop++)										
+		{
+			
+			gettimeofday(&start, NULL);      																		// Guardamos el tiempo en la estructura start
+			tiempo[Loop][0]=start.tv_sec;
+			tiempo[Loop][1]=start.tv_usec;
+			
+			lectura(NChannels,AdcValues,SINGLE_ENDED_INPUTS_8,Loop);
+			//ADS1256_ReadAdcValues(&Channels, NChannels, SINGLE_ENDED_INPUTS_8, &AdcValues);			//Pasamos el arreglo con los canales a leer, la cant. de canales, el modo (singular o diferencial) y el arreglo 
+				//double *volt = ADS1256_AdcArrayToMicroVolts(AdcValues, NChannels, 1000000.0 / 1000000.0);																										//donde guardar los valores leidos
+																	
+		}
 		
 		for (Loop = 0; Loop < CantMuestras; Loop++)										
 		{
-			int32_t *AdcValues = NULL;																		//Arreglo dinámico donde guardaremos los valores leidos de cada canal(se rellena con los argumentos pasados en ReadAdcValues
-			//tiempo = clock();																			//Devuelve la cantidad de pulsos de reloj desde que se inició el proceso
-			//tiempo = time(NULL);																			//Devuelve la fecha y hora actual o -1 en caso de error
-			gettimeofday(&start, NULL);      																// Guardamos el tiempo en la estructura start
-			ADS1256_ReadAdcValues(&Channels, NChannels, SINGLE_ENDED_INPUTS_8, &AdcValues);				//Pasamos el arreglo con los canales a leer, la cant. de canales, el modo (singular o diferencial) y el arreglo 
-																											//donde guardar los valores leidos
-			double *volt = ADS1256_AdcArrayToMicroVolts(AdcValues, NChannels, 1000000.0 / 1000000.0);			//Pasamos a volts los valores leidos (esto lo podemos realizar en un excel una vez que saquemos los datos para poder
-																											//reducir los ciclos de procesamiento del procesador
-			
-			fprintf(fp,"%f	%f	%f	%f	%f	%f	%f	%f	%ld	%ld\r\n", 		//Imprimimos los valores del arreglo en el archivo 
-				   volt[0], volt[1], volt[2], volt[3], volt[4], volt[5], volt[6], volt[7], start.tv_sec, start.tv_usec );   //   tiempo/(double)CLOCKS_PER_SEC
-			//printf("0 : %f V   1 : %f V   2 : %f V   3 : %f V   4 : %f V   5 : %f V   6 : %f V   7 : %f V \r\n",		//Mostrar los datos por puerto serie
-			//	   volt[0], volt[1], volt[2], volt[3], volt[4], volt[5], volt[6], volt[7]);
-
-			//DAC8552_Write(channel_A, Voltage_Convert(5.0, volt[0]));										//Funcion para escribir en una salida el valor leido por el canal 0
-		n++;
-		/*printf("n= %i\n",n);																								////Calculo de la media, el delta y la distancia al cuadrado de cada canal////
-		for (cont = 0; cont < NChannels; cont++)										
-		{
-			delta[cont]=volt[cont]-media[cont];
-			
-		}
-		
-		for (cont = 0; cont < NChannels; cont++)										
-		{
-			media[cont]+=delta[cont]/n;
-		}
-		
-		for (cont = 0; cont < NChannels; cont++)										
-		{
-			m2[cont]+=(delta[cont]*(volt[cont]-media[cont]));
-		//	printf("m2= %lf\n",m2[0]);
-		}
-		
-		for (cont = 0; cont < NChannels; cont++)										
-		{
-		varianza[cont]=m2[cont]/((double)n-1);
-		//printf("var= %lf\n",varianza[0]);
-		//printf("aca llega!\r\n");
-		}	
-		for (cont = 0; cont < NChannels; cont++)										
-		{
-		stdev[cont]= sqrt(varianza[cont]);
-		}
-		*/
-		//bsp_DelayUS(500000);	
-		free(AdcValues);																				//Así como inicializamos los arreglos dinamicos y reservamos memoria, tambien debemos liberar esa memoria reservada
-		free(volt);																		//Espera activa de 0,5 segundos = 500000 uS
+				//double *volt = ADS1256_AdcArrayToMicroVolts(AdcValues, NChannels, 1000000.0 / 1000000.0);					//Pasamos a volts los valores leidos (esto lo podemos realizar en un excel una vez que saquemos los datos para poder																										//reducir los ciclos de procesamiento del procesador
+				fprintf(fp,"%d	%d	%d	%d	%d	%d	%d	%d	%lld	%lld\r\n",AdcValues[Loop][0], AdcValues[Loop][1], AdcValues[Loop][2], AdcValues[Loop][3], AdcValues[Loop][4], AdcValues[Loop][5], AdcValues[Loop][6], AdcValues[Loop][7], tiempo[Loop][0], tiempo[Loop][1] ); 		// tiempo/(double)CLOCKS_PER_SEC
+				
 		}
 		fclose(fp);																							//Cerramos el descriptor de archivo
 		printf("aca llega!\r\n");
