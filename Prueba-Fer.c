@@ -24,6 +24,8 @@
  * 
  * @return int 
  */
+struct timeval start,canal1;	//Estructuras donde guardaremos el tiempo
+int64_t tiempo1[40000][2];
 
 int lectura(int NbChannels, int AdcValues[][8], ADS1256_SCAN_MODE mode, int loop)
 {
@@ -48,7 +50,14 @@ int lectura(int NbChannels, int AdcValues[][8], ADS1256_SCAN_MODE mode, int loop
 		ADS1256_WriteCmd(CMD_WAKEUP);
 		bsp_DelayUS(MASTER_CLOCK_PERIOD_USEC_TIMES_24);
 		
+		if(i==1)
+		{
+			gettimeofday(&canal1, NULL);      																		// Guardamos el tiempo en la estructura start
+			tiempo1[loop][0]=start.tv_sec;
+			tiempo1[loop][1]=start.tv_usec;
+		}
 		AdcValues[loop][i] = ADS1256_ReadData();
+		
 	}
 	
 	return 0;
@@ -71,20 +80,11 @@ int main(void)
 	int MainLoop = 0;															//Variables de control (sacar despues)			
 	int RetCode = 0;
 	FILE *fp;																	//Descriptor de archivo que usaremos para guardar los datos en un archivo
-	FILE *fp1;
-	struct timeval start;														//Estructuras donde guardaremos el tiempo
-	int64_t tiempo[1000][2];													//Matriz donde guardaremos el tiempo en segundos y microsegundos
-	int CantMuestras = 20;														//Cantidad de muestras a leer por cada canal (Deberá ser un parámetro que ingrese el usuario)
-
-	/*double media[8]={0,0,0,0,0,0,0,0};											//Arreglo donde guardaremos la media de cada canal
-	double m2[8]={0,0,0,0,0,0,0,0};												//Distancia al cuadrado de cada muestra a la media	
-	double delta[8]={0,0,0,0,0,0,0,0};											//Distancia de cada muestra a la media
-	double varianza[8]={0,0,0,0,0,0,0,0};										//Varianza de cada canal
-	double stdev[8]={0,0,0,0,0,0,0,0};					*/						//Desviación estandar de cada canal
-//	int n=0;																	//Contador de iteraciones del bucle
+	//FILE *fp1;
 	
-	//uint64_t tiempo = 0;												//Variable entera sin signo de 64 bits donde guardaremos el tiempo de la muestra del canal 0
-	//time_t tiempo = 0;
+	int64_t tiempo[40000][2];													//Matriz donde guardaremos el tiempo en segundos y microsegundos
+	int CantMuestras = 39000;														//Cantidad de muestras a leer por cada canal (Deberá ser un parámetro que ingrese el usuario)
+
 	while (1 == 1)
 	{
 
@@ -98,13 +98,13 @@ int main(void)
 		}
 		printf("init done !\r\n");
 		printf("clocks por seg = %ld\r\n",CLOCKS_PER_SEC);
-		fp=fopen("Lectura.ods","a+");
-		fprintf(fp,"Canal 0 (uV)	Canal 1 (uV)	Canal 2 (uV)	Canal 3 (uV)	Canal 4 (uV)	Canal 5 (uV)	Canal 6 (uV)	Canal 7 (uV)	Tiempo (S) +	uS \r\n"); 		//Encabezado de columnas en el excel
+		fp=fopen("Lectura.txt","a+");
+		fprintf(fp,"Canal 0 (uV)	Canal 1 (uV)	Canal 2 (uV)	Canal 3 (uV)	Canal 4 (uV)	Canal 5 (uV)	Canal 6 (uV)	Canal 7 (uV)	Tiempo: canal 0 (S) +	uS	Canal 1 (S) +	uS\r\n"); 		//Encabezado de columnas en el excel
 		//fp=fopen("Lectura.txt","a");																							//Adjuntamos un archivo de nombre "Lectura", para escritura. Se crea si no existe
 		//fp = fopen("/home/Desktop/Archivos/libreria/RaspberryPi-ADC-DAC-master/Repo/Codigo_Proyecto_Final", "Lecturas");		//Abrimos un archivo de nombre "Lectura" en la ruta especificada
 		int Loop;
 		//int cont;
-		int32_t AdcValues[1000][8];															//Arreglo donde guardaremos los valores leidos de cada canal(se rellena con los argumentos pasados en ReadAdcValues
+		int32_t AdcValues[40000][8];															//Arreglo donde guardaremos los valores leidos de cada canal(se rellena con los argumentos pasados en ReadAdcValues
 		//int32_t *AdcValues = NULL;
 		for (Loop = 0; Loop < CantMuestras; Loop++)										
 		{
@@ -122,7 +122,8 @@ int main(void)
 		for (Loop = 0; Loop < CantMuestras; Loop++)										
 		{
 				//double *volt = ADS1256_AdcArrayToMicroVolts(AdcValues, NChannels, 1000000.0 / 1000000.0);					//Pasamos a volts los valores leidos (esto lo podemos realizar en un excel una vez que saquemos los datos para poder																										//reducir los ciclos de procesamiento del procesador
-				fprintf(fp,"%d	%d	%d	%d	%d	%d	%d	%d	%lld	%lld\r\n",AdcValues[Loop][0], AdcValues[Loop][1], AdcValues[Loop][2], AdcValues[Loop][3], AdcValues[Loop][4], AdcValues[Loop][5], AdcValues[Loop][6], AdcValues[Loop][7], tiempo[Loop][0], tiempo[Loop][1] ); 		// tiempo/(double)CLOCKS_PER_SEC
+				fprintf(fp,"%d		%d		%d		%d		%d		%d		%d		%d			%lld   %lld	  %lld	 %lld  \r\n",AdcValues[Loop][0], AdcValues[Loop][1], AdcValues[Loop][2], AdcValues[Loop][3], AdcValues[Loop][4], AdcValues[Loop][5], 
+					AdcValues[Loop][6], AdcValues[Loop][7], tiempo[Loop][0], tiempo[Loop][1], tiempo1[Loop][0],tiempo1[Loop][1] ); 		// tiempo/(double)CLOCKS_PER_SEC
 				
 		}
 		fclose(fp);																							//Cerramos el descriptor de archivo
@@ -144,9 +145,9 @@ int main(void)
 		
 	}
 	
-	fp1=fopen("desviacion estandar.xls","a+");
+	//fp1=fopen("desviacion estandar.xls","a+");
 	//fprintf(fp1,"Desviación estandar: \n Canal 0: %f\n Canal 1: %f\n Canal 2: %f\n Canal 3: %f\n Canal 4: %f\n Canal 5: %f\n Canal 6: %f\n Canal 7: %f\n",stdev[0],stdev[1],stdev[2],stdev[3],stdev[4],stdev[5],stdev[6],stdev[7]);
-	fclose(fp1);	
+	//fclose(fp1);	
 	printf("Test ADDA finished with returned code %d\r\n", RetCode);
 	
 	return RetCode;
