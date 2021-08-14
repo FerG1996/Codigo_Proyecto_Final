@@ -1,0 +1,6 @@
+1-Canal-4
+2-Frecuencia-15000
+3-Nivel-2.56
+4-Muestras posttrigger-70
+5-Muestras pretrigger-45
+
