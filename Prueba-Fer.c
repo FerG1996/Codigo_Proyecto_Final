@@ -257,8 +257,8 @@ int main(void)
 ////////////////////////BUCLE PRINCIPAL//////////////////////////////////////////////////////////////////
 	while (1 == 1)
 	{
-		int64_t tiempo[1000][2]={};											//Matriz donde guardaremos el tiempo en segundos y microsegundos
-		int32_t AdcValues[1000][8]={};											//Arreglo donde guardaremos los valores leidos de cada canal(se rellena con los argumentos pasados en ReadAdcValues)
+		int64_t tiempo[10000][2]={};											//Matriz donde guardaremos el tiempo en segundos y microsegundos
+		int32_t AdcValues[10000][8]={};											//Arreglo donde guardaremos los valores leidos de cada canal(se rellena con los argumentos pasados en ReadAdcValues)
 ///////////////////////BUCLE SECUNDARIO///////////////////////////////////////////////////////////////////
 		
 		while(1)
@@ -282,7 +282,7 @@ int main(void)
 			{
 				break;
 			}
-			if(i_general==1000)
+			if(i_general==999)
 			{
 				i_general=0;
 			}
@@ -309,7 +309,7 @@ int main(void)
 		}
 		else
 		{
-			for(j_general=i_referencia;j_general<=i_referencia+N_total;j_general++)
+			for(j_general=i_referencia;j_general<i_referencia+N_total;j_general++)
 			{
 				fprintf(file,"%d	%d	%d	%d	%d	%d	%d	%d	%lld	%lld\r\n",AdcValues[j_general][0], AdcValues[j_general][1], AdcValues[j_general][2], AdcValues[j_general][3], AdcValues[j_general][4], AdcValues[j_general][5],
 					AdcValues[j_general][6], AdcValues[j_general][7], tiempo[j_general][0], tiempo[j_general][1]); 		// tiempo/(double)CLOCKS_PER_SEC
@@ -321,24 +321,22 @@ int main(void)
 		i_general=0;
 		
 		fprintf(file,"\n\n");
-		fclose(file);																							//Cerramos el descriptor de archivo
+																								//Cerramos el descriptor de archivo
+
+		MainLoop++;
+		printf("No hay problema\n");
+		//This loop proves that you can close and re-init pacefully the librairie. Prove it several times (e.g. 3) and then finish the code.
+		if (MainLoop == 2)
+			break;
 		
+	}
+		fclose(file);	
 		printf("ADC_DAC_Close\r\n");
 		int CloseCode = ADC_DAC_Close();																	//Finalizamos la comunicación SPI y ponemos al conversor en standby
 		if (CloseCode != 0)
 		{
 			RetCode = -2;
-			break;
 		}
-		
-		MainLoop++;
-
-		//This loop proves that you can close and re-init pacefully the librairie. Prove it several times (e.g. 3) and then finish the code.
-		if (MainLoop == 1)
-			break;
-		
-	}
-	
 	printf("Test ADDA finished with returned code %d\r\n", RetCode);
 	
 	return RetCode;
