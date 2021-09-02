@@ -34,7 +34,10 @@ int frequency;
 int N_post;
 int N_pre;
 float nivel;
+int cantidad_archivos;
 FILE *fp;																		//Descriptor de archivo que usaremos para el archivo que contiene los parámetros
+FILE *file;	
+
 struct timeval start,current;													//Estructuras donde guardaremos el tiempo
 uint8_t buf[4];
 char auxiliar[30]={""};
@@ -42,7 +45,7 @@ int DRATE_E;
 
 int obtener()
 {
-	return(atoi(auxiliar));															//Función que convierte una cadena de caracteres en un número entero
+	return(atoi(auxiliar));														//Función que convierte una cadena de caracteres en un número entero
 }
 void frecuencia()																//Función que asigna a ADS1256_DRATE_E el valor correspondiente segun lo leído en el archivo
 {
@@ -111,40 +114,128 @@ void parametros()																//Función que obtiene los parámetros guardados 
 		switch(parameter)																//Según el valor del primer caracter de cada fila es el parámetro a obtener
 		{
 		case '1':																//Parámetro canal
-		{auxiliar[0]=auxiliar[largo-3];
-		canal=obtener();}
+		{	auxiliar[0]=auxiliar[largo-3];
+			canal=obtener();
+		}
 		break;
 		case '2': 																//Parámetro frecuencia
-		{auxiliar[5]='\0';
+		{	
+			auxiliar[5]='\0';
 			while(auxiliar[12+i_parcial2]!='\0')
 			{
-			auxiliar[i_parcial2]=auxiliar[12+i_parcial2];
-			i_parcial2++;
+				auxiliar[i_parcial2]=auxiliar[12+i_parcial2];
+				i_parcial2++;
 			}
-		frequency=obtener();
-		frecuencia();
+			frequency=obtener();
+			frecuencia();
 		}
 		break;
 		case '3':																//Parámetro nivel
-		{auxiliar[3]='\0';
-		auxiliar[0]=auxiliar[largo-6];
-		auxiliar[1]=auxiliar[largo-4];
-		auxiliar[2]=auxiliar[largo-3];
-		nivel=obtener()/100.0;}
+		{
+			auxiliar[3]='\0';
+			auxiliar[0]=auxiliar[largo-6];
+			auxiliar[1]=auxiliar[largo-4];
+			auxiliar[2]=auxiliar[largo-3];
+			nivel=obtener()/100.0;
+		}
 		break;
 		case '4':																//Parámetro cantidad de muestras post trigger
-		{auxiliar[2]='\0';
-		auxiliar[0]=auxiliar[largo-4];
-		auxiliar[1]=auxiliar[largo-3];
-		N_post=obtener();}
+		{
+			auxiliar[2]='\0';
+			auxiliar[0]=auxiliar[largo-4];
+			auxiliar[1]=auxiliar[largo-3];
+			N_post=obtener();
+		}
 		break;
 		case '5': 																//Parámetro cantidad de muestras pre trigger
-		{auxiliar[0]=auxiliar[largo-4];
-		auxiliar[1]=auxiliar[largo-3];
-		N_pre=obtener();}
+		{
+			auxiliar[0]=auxiliar[largo-4];
+			auxiliar[1]=auxiliar[largo-3];
+			N_pre=obtener();
+		}
+		break;
+		case '6': 
+		{
+			i_parcial2=0;
+			while(auxiliar[22+i_parcial2]!='\0')
+			{
+				auxiliar[i_parcial2]=auxiliar[22+i_parcial2];
+				i_parcial2++;
+			}
+			cantidad_archivos=obtener();
+		}
 		break;
 		}
 	}
+}
+int archivo()																	//Función para obtener el nombre del archivo 
+{
+	int number_file;
+	int largo2=0;
+	FILE *fc;
+	//FILE *fr;
+	char next_file[40];
+	char current_time[40];
+	
+	fc=fopen("lastfile.txt","r+");												//Abrimos el archivo que contiene el número del último archivo creado o modificado
+	fgets(auxiliar,40,fc);													
+	largo2=strlen(auxiliar);
+	
+	number_file=obtener();														//Guardamos en number_file el número de archivo
+	printf("number file es =%d\n",number_file);
+	printf("largo2=%d\n",largo2);
+	fseek(fc,-largo2,SEEK_CUR);													//Reubicamos el puntero del archivo al inicio del mismo 
+	if(number_file==cantidad_archivos)											//Si el número del último archivo coincide con el máximo especificado por el usuario, reiniciamos el conteo 
+	{
+		number_file=0;
+		fprintf(fc,"%d",number_file);											//Sobreescribimos el número de archivo guardado por el último numero de archivo
+	}
+	else                                                                        //Si no hemos llegado a la máxima cantidad de archivos simplemente sumamos 1 al número del último archivo
+	{
+		number_file++;
+		fprintf(fc,"%d",number_file);
+	}											
+	//fseek(fc,0,SEEK_END);
+	printf("number_file=%d\n",number_file);
+	char cadena1[40]={"find . -name \"*"};										//Cadenas con el comando find que buscará si ya existe un archivo que comience con 
+	char cadena2[40]={"*\" >resultado.txt"};									//el mismo número que el archivo actual
+	
+	sprintf(next_file,"00%d",number_file);										//Guardamos el número de archivo en formato string en next_file
+
+	strcat(cadena1,next_file);													//Concatenamos todas las cadenas
+	strcat(cadena1,cadena2);													//
+	
+	gettimeofday(&start, NULL); 												//
+	strftime(current_time,30,"%d|%m|%y-%H:%M:%S",localtime(&start.tv_sec));				//Obtenemos la fecha y hora actual y la guardamos en la cadena current_time
+	
+	char cadena3[40]={"rm *"};
+	strcat(cadena3,next_file);
+	strcat(cadena3,"*");
+	system(cadena3);
+	
+	strcat(next_file,"-");
+	strcat(next_file,current_time),
+	strcat(next_file,".txt");
+	
+	printf("cadena1=%s\n",cadena1);
+	printf("next_file=%s\n",next_file);
+	
+	int Sys=system(cadena1);													//Con la función system escribimos por línea de comando el string contenido en cadena1
+	if (Sys != 0)															
+	{
+		int RetCode = -3;
+		return RetCode;
+	}
+	fclose(fc);																	//Cerramos el archivo lastfile.txt
+	
+	
+	file=fopen(next_file,"a+");													//Abrimos el archivo donde guardaremos las lecturas
+	gettimeofday(&start, NULL);  												//Función para obtener la fecha y la hora del archivo 
+	fprintf(file,"%s\n",asctime(localtime(&start.tv_sec)));						//Imprimimos la fecha y la hora actual
+	fprintf(file,"Parámetros:\nCanal de disparo:	%d\nFrecuencia de muestreo:	%d\nNivel de disparo=	%f\nCantidad de muestras post trigger =	%d\nCantidad de muestras pre trigger =	%d\nNúmero de archivo =	%d\n",canal,frequency,nivel,N_post,N_pre,number_file);	
+	fprintf(file,"Volts/cuenta =	5000000/8388608\nCanal 0 (uV)	Canal 1 (uV)	Canal 2 (uV)	Canal 3 (uV)	Canal 4 (uV)	Canal 5 (uV)	Canal 6 (uV)	Canal 7 (uV)	Tiempo: canal 0 (S) +	uS\r\n"); 		//Encabezado de columnas en el excel
+	
+	return 0;
 }
 int lectura(int NbChannels, int AdcValues[][8], ADS1256_SCAN_MODE mode, int loop)	//Función de lectura implementada con matrices y no arreglos dinámicos
 {
@@ -183,15 +274,12 @@ int main(void)
 	int NChannels = 8;															//Cantidad de canales a leer
 	int MainLoop = 0;															//Variables de control (sacar despues)			
 	int RetCode = 0;
-	FILE *file;																	
 	int Id = 0;																	//Variable donde se guarda el identificador de la placa
-	//int CantMuestras = 100;														//Cantidad de muestras a leer por cada canal (Deberá ser un parámetro que ingrese el usuario)
 	int i_general=0;															
 	int j_general; 
 	int i_parcial=0;
 	int flag_triggered=0;
 	int i_referencia;
-//	int Loop;
 	int level_triggered=0;														//Variable donde guardaremos la combinación equivalente al nivel seleccionado
 	int N_total=0;																//N será igual a la cantidad total de muestras a guardar en el archivo, por lo tanto, N=post+pre
 	
@@ -207,28 +295,30 @@ int main(void)
 	}
 	printf("SPI initialized\r\n");
 	printf("ADC_DAC_Init\r\n");
-	fp=fopen("Parametros.txt","r");											//Abrimos el archivo de configuración
+	fp=fopen("Parametros.txt","r+");												//Abrimos el archivo de configuración
 	if(fp==NULL)
 	{
 		printf("No se pudo abrir archivo\n");
 		exit(1);
 	}
-	parametros();															//Obtenemos los parámetros
-	fclose(fp);																//Cerramos el archivo de configuración
+	parametros();																//Obtenemos los parámetros
+	fclose(fp);																	//Cerramos el archivo de configuración
 	
 	printf("canal=%d\n",canal);
 	printf("frecuencia=%d\n",DRATE_E);
 	printf("nivel=%f\n",nivel);
 	printf("post=%d\n",N_post);
 	printf("pre=%d\n",N_pre);
+	printf("cantidad_archivos=%d\n",cantidad_archivos);
 	
-	level_triggered=nivel*8388608/5;										//Conversion de volts a numero combinacional 
+	
+	level_triggered=nivel*8388608/5;											//Conversion de volts a numero combinacional 
 	N_total=N_pre+N_post;
 	
 	/////////////CONFIGURACIÓN DEL ADC///////////////
 	
-	int Init = ADC_DAC_Init(&Id, ADS1256_GAIN_1, DRATE_E);					//Inicializamos el ADC. En Id obtenemos el numero de identificación del chip que debería ser igual a 3.
-	if (Init != 0)															//Elegimos ganancia igual a 1 y la frecuencia de muestreo en muestras/segundo
+	int Init = ADC_DAC_Init(&Id, ADS1256_GAIN_1, DRATE_E);						//Inicializamos el ADC. En Id obtenemos el numero de identificación del chip que debería ser igual a 3.
+	if (Init != 0)																//Elegimos ganancia igual a 1 y la frecuencia de muestreo en muestras/segundo
 	{
 		RetCode = -1;
 		return RetCode;
@@ -238,25 +328,22 @@ int main(void)
 	buf[1] = 0x08;
 	buf[2] = (0 << 5) | (0 << 3) | ((uint8_t) ADS1256_GAIN_1 << 0);
 	CS_ADC_0();	
-	ADS1256_Send8Bit(CMD_WREG | 0); 										/* Write command register, send the register address */
-	ADS1256_Send8Bit(0x03);													/* Register number 4,Initialize the number  -1*/
-	ADS1256_Send8Bit(buf[0]); 												/* Set the status register */
-	ADS1256_Send8Bit(buf[1]); 												/* Set the input channel parameters */
-	ADS1256_Send8Bit(buf[2]); 												/* Set the ADCON control register,gain */
-	ADS1256_Send8Bit(buf[3]); 												/* Set the output rate */
+	ADS1256_Send8Bit(CMD_WREG | 0); 											/* Write command register, send the register address */
+	ADS1256_Send8Bit(0x03);														/* Register number 4,Initialize the number  -1*/
+	ADS1256_Send8Bit(buf[0]); 													/* Set the status register */
+	ADS1256_Send8Bit(buf[1]); 													/* Set the input channel parameters */
+	ADS1256_Send8Bit(buf[2]); 													/* Set the ADCON control register,gain */
+	ADS1256_Send8Bit(buf[3]); 													/* Set the output rate */
 	
-	CS_ADC_1(); 															/* SPI  cs = 1 */
+	CS_ADC_1(); 																/* SPI  cs = 1 */
 	
 	printf("init done !\r\n");
-	file=fopen("Disparo.txt","a+");									//Abrimos el archivo donde guardaremos las lecturas
-	gettimeofday(&start, NULL);  											//Función para obtener la fecha y la hora del archivo 
-	fprintf(file,"%s\n",asctime(localtime(&start.tv_sec)));					//Imprimimos la fecha y la hora actual
-	fprintf(file,"Parámetros:\nCanal de disparo:	%d\nFrecuencia de muestreo:	%d\nNivel de disparo=	%f\nCantidad de muestras post trigger =	%d\nCantidad de muestras pre trigger =	%d\n",canal,frequency,nivel,N_post,N_pre);	
-	fprintf(file,"Volts/cuenta =	5000000/8388608\nCanal 0 (uV)	Canal 1 (uV)	Canal 2 (uV)	Canal 3 (uV)	Canal 4 (uV)	Canal 5 (uV)	Canal 6 (uV)	Canal 7 (uV)	Tiempo: canal 0 (S) +	uS\r\n"); 		//Encabezado de columnas en el excel
 	
 ////////////////////////BUCLE PRINCIPAL//////////////////////////////////////////////////////////////////
 	while (1 == 1)
 	{
+		archivo();																//Obtenemos y abrimos el archivo donde guardaremos las mediciones
+		
 		int64_t tiempo[10000][2]={};											//Matriz donde guardaremos el tiempo en segundos y microsegundos
 		int32_t AdcValues[10000][8]={};											//Arreglo donde guardaremos los valores leidos de cada canal(se rellena con los argumentos pasados en ReadAdcValues)
 ///////////////////////BUCLE SECUNDARIO///////////////////////////////////////////////////////////////////
@@ -321,16 +408,16 @@ int main(void)
 		i_general=0;
 		
 		fprintf(file,"\n\n");
-																								//Cerramos el descriptor de archivo
+		fclose(file);																							//Cerramos el descriptor de archivo
 
 		MainLoop++;
 		printf("No hay problema\n");
 		//This loop proves that you can close and re-init pacefully the librairie. Prove it several times (e.g. 3) and then finish the code.
-		if (MainLoop == 2)
+		if (MainLoop == 10)
 			break;
 		
 	}
-		fclose(file);	
+		
 		printf("ADC_DAC_Close\r\n");
 		int CloseCode = ADC_DAC_Close();																	//Finalizamos la comunicación SPI y ponemos al conversor en standby
 		if (CloseCode != 0)

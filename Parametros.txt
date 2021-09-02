@@ -1,6 +1,15 @@
-1-Canal-4
-2-Frecuencia-15000
-3-Nivel-2.56
+1-Canal-3
+2-Frecuencia-50
+3-Nivel-2.00
 4-Muestras posttrigger-70
-5-Muestras pretrigger-45
+5-Muestras pretrigger-30
+6-Cantidad de archivos-5
+
+
+
+
+
+
+
+
 
