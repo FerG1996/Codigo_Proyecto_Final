@@ -37,6 +37,7 @@ float nivel;
 int cantidad_archivos;
 FILE *fp;																		//Descriptor de archivo que usaremos para el archivo que contiene los parámetros
 FILE *file;	
+int RetCode = 0;
 
 struct timeval start,current;													//Estructuras donde guardaremos el tiempo
 uint8_t buf[4];
@@ -108,6 +109,7 @@ void parametros()																//Función que obtiene los parámetros guardados 
 	int i_parcial2=0;
 	while(!feof(fp))															//Mientras no se llegue hasta el final del archivo se ejecuta el loop
 	{
+		
 		parameter=fgetc(fp);													//Obtenemos el primer caracter de cada fila
 		fgets(auxiliar,30,fp);													//Obtenemos la oración restante
 		largo=strlen(auxiliar);													//Largo de la cadena almacenada en aux
@@ -145,6 +147,7 @@ void parametros()																//Función que obtiene los parámetros guardados 
 			auxiliar[0]=auxiliar[largo-4];
 			auxiliar[1]=auxiliar[largo-3];
 			N_post=obtener();
+			
 		}
 		break;
 		case '5': 																//Parámetro cantidad de muestras pre trigger
@@ -173,18 +176,48 @@ int archivo()																	//Función para obtener el nombre del archivo
 	int number_file;
 	int largo2=0;
 	FILE *fc;
-	//FILE *fr;
 	char next_file[40];
 	char current_time[40];
 	
 	fc=fopen("lastfile.txt","r+");												//Abrimos el archivo que contiene el número del último archivo creado o modificado
+	if(fc==NULL)
+	{
+		fc=fopen("lastfile.txt","w+");	
+		if(fc==NULL)
+		{printf("Error al crear el archivo\n");
+		 return -4;}
+	}
+	
 	fgets(auxiliar,40,fc);													
 	largo2=strlen(auxiliar);
 	
 	number_file=obtener();														//Guardamos en number_file el número de archivo
 	printf("number file es =%d\n",number_file);
-	printf("largo2=%d\n",largo2);
-	fseek(fc,-largo2,SEEK_CUR);													//Reubicamos el puntero del archivo al inicio del mismo 
+
+	sprintf(next_file,"00%d",number_file);										//Guardamos el número de archivo en formato string en next_file
+	
+	gettimeofday(&start, NULL); 												//
+	strftime(current_time,30,"%d|%m|%y-%H:%M:%S",localtime(&start.tv_sec));		//Obtenemos la fecha y hora actual y la guardamos en la cadena current_time
+	
+	printf("next_file:%s\n",next_file);
+	char cadena1[40]={"rm *"};
+	strcat(cadena1,next_file);
+	strcat(cadena1,"*");
+	int Sys=system(cadena1);													//Con la función system escribimos por línea de comando el string contenido en cadena1
+	if (Sys != 0)															
+	{
+		RetCode = -3;
+		//return RetCode;
+	}
+		
+	strcat(next_file,"-");
+	strcat(next_file,current_time),
+	strcat(next_file,".txt");
+	
+	printf("next_file=%s\n",next_file);
+	
+	fseek(fc,-largo2,SEEK_CUR);														//Reubicamos el puntero del archivo al inicio del mismo 
+	
 	if(number_file==cantidad_archivos)											//Si el número del último archivo coincide con el máximo especificado por el usuario, reiniciamos el conteo 
 	{
 		number_file=0;
@@ -194,45 +227,17 @@ int archivo()																	//Función para obtener el nombre del archivo
 	{
 		number_file++;
 		fprintf(fc,"%d",number_file);
-	}											
-	//fseek(fc,0,SEEK_END);
-	printf("number_file=%d\n",number_file);
-	char cadena1[40]={"find . -name \"*"};										//Cadenas con el comando find que buscará si ya existe un archivo que comience con 
-	char cadena2[40]={"*\" >resultado.txt"};									//el mismo número que el archivo actual
-	
-	sprintf(next_file,"00%d",number_file);										//Guardamos el número de archivo en formato string en next_file
-
-	strcat(cadena1,next_file);													//Concatenamos todas las cadenas
-	strcat(cadena1,cadena2);													//
-	
-	gettimeofday(&start, NULL); 												//
-	strftime(current_time,30,"%d|%m|%y-%H:%M:%S",localtime(&start.tv_sec));				//Obtenemos la fecha y hora actual y la guardamos en la cadena current_time
-	
-	char cadena3[40]={"rm *"};
-	strcat(cadena3,next_file);
-	strcat(cadena3,"*");
-	system(cadena3);
-	
-	strcat(next_file,"-");
-	strcat(next_file,current_time),
-	strcat(next_file,".txt");
-	
-	printf("cadena1=%s\n",cadena1);
-	printf("next_file=%s\n",next_file);
-	
-	int Sys=system(cadena1);													//Con la función system escribimos por línea de comando el string contenido en cadena1
-	if (Sys != 0)															
-	{
-		int RetCode = -3;
-		return RetCode;
-	}
-	fclose(fc);																	//Cerramos el archivo lastfile.txt
-	
+	}		
+	printf("number file=%d",number_file);
 	
 	file=fopen(next_file,"a+");													//Abrimos el archivo donde guardaremos las lecturas
+	//printf("sacalo aca\n");
+	//bsp_DelayUS(5000000);
+	fclose(fc);																	//Cerramos el archivo lastfile.txt
+	
 	gettimeofday(&start, NULL);  												//Función para obtener la fecha y la hora del archivo 
 	fprintf(file,"%s\n",asctime(localtime(&start.tv_sec)));						//Imprimimos la fecha y la hora actual
-	fprintf(file,"Parámetros:\nCanal de disparo:	%d\nFrecuencia de muestreo:	%d\nNivel de disparo=	%f\nCantidad de muestras post trigger =	%d\nCantidad de muestras pre trigger =	%d\nNúmero de archivo =	%d\n",canal,frequency,nivel,N_post,N_pre,number_file);	
+	fprintf(file,"Parámetros:\nCanal de disparo:	%d\nFrecuencia de muestreo:	%d\nNivel de disparo=	%f\nCantidad de muestras post trigger =	%d\nCantidad de muestras pre trigger =	%d\nNúmero de archivo =	%d\n",canal,frequency,nivel,N_post,N_pre,number_file-1);	
 	fprintf(file,"Volts/cuenta =	5000000/8388608\nCanal 0 (uV)	Canal 1 (uV)	Canal 2 (uV)	Canal 3 (uV)	Canal 4 (uV)	Canal 5 (uV)	Canal 6 (uV)	Canal 7 (uV)	Tiempo: canal 0 (S) +	uS\r\n"); 		//Encabezado de columnas en el excel
 	
 	return 0;
@@ -273,7 +278,7 @@ int main(void)
 	
 	int NChannels = 8;															//Cantidad de canales a leer
 	int MainLoop = 0;															//Variables de control (sacar despues)			
-	int RetCode = 0;
+	
 	int Id = 0;																	//Variable donde se guarda el identificador de la placa
 	int i_general=0;															
 	int j_general; 
@@ -295,13 +300,14 @@ int main(void)
 	}
 	printf("SPI initialized\r\n");
 	printf("ADC_DAC_Init\r\n");
-	fp=fopen("Parametros.txt","r+");												//Abrimos el archivo de configuración
+	fp=fopen("Parametros.txt","r");												//Abrimos el archivo de configuración
 	if(fp==NULL)
 	{
 		printf("No se pudo abrir archivo\n");
 		exit(1);
 	}
 	parametros();																//Obtenemos los parámetros
+	
 	fclose(fp);																	//Cerramos el archivo de configuración
 	
 	printf("canal=%d\n",canal);
@@ -342,10 +348,9 @@ int main(void)
 ////////////////////////BUCLE PRINCIPAL//////////////////////////////////////////////////////////////////
 	while (1 == 1)
 	{
-		archivo();																//Obtenemos y abrimos el archivo donde guardaremos las mediciones
 		
-		int64_t tiempo[10000][2]={};											//Matriz donde guardaremos el tiempo en segundos y microsegundos
-		int32_t AdcValues[10000][8]={};											//Arreglo donde guardaremos los valores leidos de cada canal(se rellena con los argumentos pasados en ReadAdcValues)
+		int64_t tiempo[40000][2]={};											//Matriz donde guardaremos el tiempo en segundos y microsegundos
+		int32_t AdcValues[40000][8]={};											//Arreglo donde guardaremos los valores leidos de cada canal(se rellena con los argumentos pasados en ReadAdcValues)
 ///////////////////////BUCLE SECUNDARIO///////////////////////////////////////////////////////////////////
 		
 		while(1)
@@ -369,7 +374,7 @@ int main(void)
 			{
 				break;
 			}
-			if(i_general==999)
+			if(i_general==38999)
 			{
 				i_general=0;
 			}
@@ -379,11 +384,13 @@ int main(void)
 			}
 		}
 		
+		archivo();																//Obtenemos y abrimos el archivo donde guardaremos las mediciones
+		
 		i_referencia=i_general-N_total;
 		printf("\nAca tambien\n");
 		if(i_referencia<0)
 		{
-			for(j_general=999+i_referencia;j_general<1000;j_general++)
+			for(j_general=38999+i_referencia;j_general<39000;j_general++)
 			{
 				fprintf(file,"%d	%d	%d	%d	%d	%d	%d	%d	%lld	%lld\r\n",AdcValues[j_general][0], AdcValues[j_general][1], AdcValues[j_general][2], AdcValues[j_general][3], AdcValues[j_general][4], AdcValues[j_general][5],
 					AdcValues[j_general][6], AdcValues[j_general][7], tiempo[j_general][0], tiempo[j_general][1]); 		// tiempo/(double)CLOCKS_PER_SEC
@@ -403,13 +410,14 @@ int main(void)
 			}
 		}
 		
+		
+		fprintf(file,"\n\n");
+		fclose(file);															//Cerramos el descriptor de archivo
+
 		flag_triggered=0;
 		i_parcial=0;
 		i_general=0;
 		
-		fprintf(file,"\n\n");
-		fclose(file);																							//Cerramos el descriptor de archivo
-
 		MainLoop++;
 		printf("No hay problema\n");
 		//This loop proves that you can close and re-init pacefully the librairie. Prove it several times (e.g. 3) and then finish the code.
