@@ -143,17 +143,24 @@ void parametros()																//Función que obtiene los parámetros guardados 
 		break;
 		case '4':																//Parámetro cantidad de muestras post trigger
 		{
-			auxiliar[2]='\0';
-			auxiliar[0]=auxiliar[largo-4];
-			auxiliar[1]=auxiliar[largo-3];
+			i_parcial2=0;
+			while(auxiliar[22+i_parcial2]!='\r')
+			{
+				auxiliar[i_parcial2]=auxiliar[22+i_parcial2];
+				i_parcial2++;
+			}
 			N_post=obtener();
 			
 		}
 		break;
 		case '5': 																//Parámetro cantidad de muestras pre trigger
 		{
-			auxiliar[0]=auxiliar[largo-4];
-			auxiliar[1]=auxiliar[largo-3];
+			i_parcial2=0;
+			while(auxiliar[21+i_parcial2]!='\r')
+			{
+				auxiliar[i_parcial2]=auxiliar[21+i_parcial2];
+				i_parcial2++;
+			}
 			N_pre=obtener();
 		}
 		break;
@@ -202,7 +209,7 @@ int archivo()																	//Función para obtener el nombre del archivo
 	printf("next_file:%s\n",next_file);
 	char cadena1[40]={"rm *"};
 	strcat(cadena1,next_file);
-	strcat(cadena1,"*");
+	strcat(cadena1,"-*");
 	int Sys=system(cadena1);													//Con la función system escribimos por línea de comando el string contenido en cadena1
 	if (Sys != 0)															
 	{
@@ -221,11 +228,14 @@ int archivo()																	//Función para obtener el nombre del archivo
 	if(number_file==cantidad_archivos)											//Si el número del último archivo coincide con el máximo especificado por el usuario, reiniciamos el conteo 
 	{
 		number_file=0;
-		fprintf(fc,"%d",number_file);											//Sobreescribimos el número de archivo guardado por el último numero de archivo
+		system("rm *lastfile*");
+		fc=fopen("lastfile.txt","w+");	
+		fprintf(fc,"%d",number_file);
 	}
 	else                                                                        //Si no hemos llegado a la máxima cantidad de archivos simplemente sumamos 1 al número del último archivo
 	{
 		number_file++;
+		fseek(fc,0,SEEK_SET);
 		fprintf(fc,"%d",number_file);
 	}		
 	printf("number file=%d",number_file);
@@ -282,7 +292,7 @@ int main(void)
 	int Id = 0;																	//Variable donde se guarda el identificador de la placa
 	int i_general=0;															
 	int j_general; 
-	int i_parcial=0;
+	int i_parcial=-1;
 	int flag_triggered=0;
 	int i_referencia;
 	int level_triggered=0;														//Variable donde guardaremos la combinación equivalente al nivel seleccionado
@@ -290,7 +300,7 @@ int main(void)
 	
 ////////////////////////INICIO DE PRUEBA/////////////////////////////////////////////////////////////////
 	
-	printf("Iniciando prueba\r\n");
+	printf("Iniciando prueba de Fer\r\n");
 	
 	int initSpi = spi_init();													//Inicializamos la comunicación SPI
 	if (initSpi != 1)
@@ -370,7 +380,7 @@ int main(void)
 			{
 				i_parcial++;
 			}
-			if(i_parcial==N_post)
+			if(i_parcial==N_post+1)
 			{
 				break;
 			}
@@ -395,7 +405,7 @@ int main(void)
 				fprintf(file,"%d	%d	%d	%d	%d	%d	%d	%d	%lld	%lld\r\n",AdcValues[j_general][0], AdcValues[j_general][1], AdcValues[j_general][2], AdcValues[j_general][3], AdcValues[j_general][4], AdcValues[j_general][5],
 					AdcValues[j_general][6], AdcValues[j_general][7], tiempo[j_general][0], tiempo[j_general][1]); 		// tiempo/(double)CLOCKS_PER_SEC
 			}
-			for(j_general=0;j_general<i_general+1;j_general++)
+			for(j_general=0;j_general<i_general;j_general++)
 			{
 				fprintf(file,"%d	%d	%d	%d	%d	%d	%d	%d	%lld	%lld\r\n",AdcValues[j_general][0], AdcValues[j_general][1], AdcValues[j_general][2], AdcValues[j_general][3], AdcValues[j_general][4], AdcValues[j_general][5],
 					AdcValues[j_general][6], AdcValues[j_general][7], tiempo[j_general][0], tiempo[j_general][1]); 		// tiempo/(double)CLOCKS_PER_SEC
@@ -403,7 +413,7 @@ int main(void)
 		}
 		else
 		{
-			for(j_general=i_referencia;j_general<i_referencia+N_total;j_general++)
+			for(j_general=i_referencia;j_general<i_referencia+N_total+1;j_general++)
 			{
 				fprintf(file,"%d	%d	%d	%d	%d	%d	%d	%d	%lld	%lld\r\n",AdcValues[j_general][0], AdcValues[j_general][1], AdcValues[j_general][2], AdcValues[j_general][3], AdcValues[j_general][4], AdcValues[j_general][5],
 					AdcValues[j_general][6], AdcValues[j_general][7], tiempo[j_general][0], tiempo[j_general][1]); 		// tiempo/(double)CLOCKS_PER_SEC
@@ -415,13 +425,13 @@ int main(void)
 		fclose(file);															//Cerramos el descriptor de archivo
 
 		flag_triggered=0;
-		i_parcial=0;
+		i_parcial=-1;
 		i_general=0;
 		
 		MainLoop++;
 		printf("No hay problema\n");
 		//This loop proves that you can close and re-init pacefully the librairie. Prove it several times (e.g. 3) and then finish the code.
-		if (MainLoop == 10)
+		if (MainLoop == 1000)
 			break;
 		
 	}
