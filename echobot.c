@@ -10,6 +10,7 @@
 int flag1=3;
 int flag2=3;
 int flag3=3;
+int flag4=3;
 telebot_handler_t handle;
 telebot_user_t me;
 telebot_error_e ret;
@@ -17,52 +18,14 @@ telebot_message_t message;
 telebot_update_type_e update_types[] = {TELEBOT_UPDATE_TYPE_MESSAGE};
 int cantidad_archivos;
 int lastfile;
+int firstfile;
 char auxiliar_cantidad[50]={""};
+int number_file2;
+int lista;
 
-void enviar_archivo(char auxiliar[150])
-{
-	int l=strlen(auxiliar);
-	char auxiliar2[50]={""};
-	char auxiliar3[50]={""};
-	char doc[]={"/home/pi/Desktop/Archivos/libreria /RaspberryPi-ADC-DAC-master/build"};
-	int i_parcial=0;
-	
-	while(auxiliar[l-i_parcial]!='/')
-	{
-		auxiliar2[i_parcial]=auxiliar[l-i_parcial-2];
-		i_parcial++;
-	}
-	l=strlen(auxiliar2);
-	for(i_parcial=0;i_parcial<l-1;i_parcial++)
-	{
-		auxiliar3[i_parcial]=auxiliar2[l-i_parcial-2];
-	}
-	
-	strcat(doc,auxiliar3);
-    printf("Doc = %s\n",doc);
-	ret=telebot_send_document(handle, message.chat->id, doc, true, NULL, "","", false, 0,"");
-	
-}
 
-void ultimo()
-{
-	FILE *ff;
-	char auxiliar[150]={""};
-    char cadena1[]={"find /home/pi/Desktop/Archivos/ -type f -name \"*00*\" -printf '%T+ %p\n' | sort -r | head -1 >resultado.txt"};
 
-	system(cadena1);
-	
-	ff=fopen("resultado.txt","r+");
-	if(ff==NULL)
-	{
-		printf("No se pudo abrir archivo\n");
-		exit(1);
-	}
-	fgets(auxiliar,150,ff);
-	fclose(ff);
-    
-	enviar_archivo(auxiliar);	
-}
+/*/////////////////////////////////////////////////////////////////////////////////////////////////////*/
 
 void obtener_cantidad()
 {
@@ -94,7 +57,89 @@ void obtener_cantidad()
 	cantidad_archivos=atoi(auxiliar_cantidad);
 	printf("Cantidad de archivos = %s y en numero es %d\n",auxiliar_cantidad,cantidad_archivos);
 }
+/*/////////////////////////////////////////////////////////////////////////////////////////////////////*/
+void enviar_archivo(char auxiliar[150])
+{
+	int l=strlen(auxiliar);
+	char auxiliar2[50]={""};
+	char auxiliar3[50]={""};
+	char doc[]={"/home/pi/Desktop/Archivos/libreria /RaspberryPi-ADC-DAC-master/build"};
+	int i_parcial=0;
+	
+	while(auxiliar[l-i_parcial]!='/')
+	{
+		auxiliar2[i_parcial]=auxiliar[l-i_parcial-2];
+		i_parcial++;
+	}
+	l=strlen(auxiliar2);
+	for(i_parcial=0;i_parcial<l-1;i_parcial++)
+	{
+		auxiliar3[i_parcial]=auxiliar2[l-i_parcial-2];
+	}
+	
+	strcat(doc,auxiliar3);
+    printf("Doc = %s\n",doc);
+	ret=telebot_send_document(handle, message.chat->id, doc, true, NULL, "","", false, 0,"");
+	
+}
+/*/////////////////////////////////////////////////////////////////////////////////////////////////////*/
+void ultimo()
+{
+	//FILE *ff;
+	char auxiliar[150]={""};
+    //char cadena1[]={"find /home/pi/Desktop/Archivos/ -type f -name \"*00*\" -printf '%T+ %p\n' | sort -r | head -1 >resultado.txt"};
+    char cadena[]={"find /home/pi/Desktop/Archivos/ -type f -wholename \"*00"};
+    FILE *fl;
+	FILE *name_file;
+	//int i_parcial2=0;
+	int number_file;
+	//char auxiliar[40]={""};
+	char auxiliar2[200]={""};
+    //char c;
+	
+	fl=fopen("/home/pi/Desktop/Archivos/libreria /RaspberryPi-ADC-DAC-master/build/lastfile.txt","r+");
+	if(fl==NULL)
+	{
+		printf("No se pudo abrir archivo\n");
+		exit(3);
+	}
+	fgets(auxiliar,40,fl);
+	fclose(fl);
+	number_file=atoi(auxiliar);
+	number_file--;
+	
+	if(number_file<0)
+	{
+		obtener_cantidad();
+		number_file=cantidad_archivos;
+	}
+	
+    name_file=fopen("resultado2.txt","r+");
+    if(name_file==NULL)
+    {
+        printf("No se pudo abrir archivo\n");
+        exit(4);
+    }
+    if(number_file==0)
+    {
+			system("find /home/pi/Desktop/Archivos/ -type f -name \"*000-*\" >resultado2.txt");
+			fgets(auxiliar2,150,name_file);
+    }
+    else
+    {
+        sprintf(auxiliar_cantidad,"%d",number_file);
+		strcat(cadena,auxiliar_cantidad);
+		strcat(cadena,"-*\">resultado2.txt");
+		printf("cadena = %s\n",cadena);
+		system(cadena);
+		fseek(name_file,0,SEEK_SET);
+        fgets(auxiliar2,150,name_file);
+    }
+    
+	enviar_archivo(auxiliar2);	
+}
 
+/*/////////////////////////////////////////////////////////////////////////////////////////////////////*/
 void ultimos10()
 {
 	FILE *fl;
@@ -179,13 +224,178 @@ void ultimos10()
 	}
 	
 }
-
+/*/////////////////////////////////////////////////////////////////////////////////////////////////////*/
+void listar_archivos()
+{
+	FILE *fu;
+	FILE *name_file2;
+	int i_parcial3=0;
+	int i_parcial4=0;
+	char auxiliar[40]={""};
+    char auxiliar2[200]={""};
+	
+    char oldest[]={"find /home/pi/Desktop/Archivos/ -type f -wholename \"*00"};
+	//char oldest[200]={""};
+    int largo;
+	char c;
+	char f;
+    printf("\n\nlista = %d\n\n",lista);
+	if(lista==-1)
+	{
+		fu=fopen("/home/pi/Desktop/Archivos/libreria /RaspberryPi-ADC-DAC-master/build/lastfile.txt","r+");
+	
+		if(fu==NULL)
+		{
+			printf("No se pudo abrir archivo\n");
+			exit(3);
+		}
+		fgets(auxiliar,40,fu);
+		fclose(fu);
+		number_file2=atoi(auxiliar);
+		
+        strcat(oldest,auxiliar);
+        strcat(oldest,"-*\">resultado2.txt");
+        printf("oldest = %s\n",oldest);
+        system(oldest);
+        name_file2=fopen("resultado2.txt","r+");
+        f=fgetc(name_file2);
+        fclose(name_file2);
+        
+        if(f=='/')
+		{
+			printf("Si existe el archivo\n");
+			firstfile=number_file2;
+		}
+		else
+		{
+			printf("No existe\n");
+			firstfile=0;
+		}
+		printf("firstfile es igual a %d\n",firstfile);
+        number_file2--;
+		
+		obtener_cantidad();
+		if(number_file2<0)
+		{
+			number_file2=cantidad_archivos;
+		}
+		lastfile=number_file2;
+        printf("\nAca entra\n");
+	}
+	char auxiliar4[1000]={""};
+	
+	for(i_parcial3=0;i_parcial3<10;i_parcial3++)
+	{
+		char cadena[]={"find /home/pi/Desktop/Archivos/ -type f -wholename \"*00"};
+		char aux_name[400]={""};
+		char aux_name2[400]={""};
+        char auxiliar3[50]={""};
+		name_file2=fopen("resultado2.txt","r+");
+		if(name_file2==NULL)
+		{
+			printf("No se pudo abrir archivo\n");
+			exit(4);
+		}
+		printf("\nAca tambien\n");
+        
+        if(number_file2==0)
+		{
+			flag4=0;
+			system("find /home/pi/Desktop/Archivos/ -type f -name \"*000-*\" >resultado2.txt");
+			
+			fgets(auxiliar2,150,name_file2);
+			largo=strlen(auxiliar2);
+            printf("auxiliar 2 en 0 =%s\n",auxiliar2);
+			i_parcial4=0;
+            while(auxiliar2[largo-i_parcial4]!='/')
+			{
+				auxiliar3[i_parcial4]=auxiliar2[largo-i_parcial4-2];
+				i_parcial4++;
+			}
+             printf("auxiliar 3 en 0 =%s\n",auxiliar3);
+			largo=strlen(auxiliar3);
+			for(i_parcial4=0;i_parcial4<largo-1;i_parcial4++)
+			{
+				aux_name2[i_parcial4]=auxiliar3[largo-i_parcial4-2];
+			}
+           
+            strcat(aux_name2,"\n\n");
+			strcat(aux_name2,auxiliar4);
+			strcpy(auxiliar4,aux_name2);
+            
+			obtener_cantidad();
+            sprintf(auxiliar_cantidad,"%d",cantidad_archivos);
+			strcat(cadena,auxiliar_cantidad);
+			strcat(cadena,"-*\">resultado2.txt");
+			printf("cadena = %s\n",cadena);
+			system(cadena);
+			
+			fseek(name_file2,0,SEEK_SET);
+			c=fgetc(name_file2);
+			if(c=='/')
+			{
+				printf("Si existe el archivo\n");
+				number_file2=cantidad_archivos;
+			}
+			else
+			{
+				printf("Ya se enviaron todos los archivos\n");
+				//lista=-1;
+                break;
+			}
+		}
+		else
+		{
+			/*if(number_file2==lastfile&&lista!=-1)
+			{
+				lista=-1;
+				break;
+			}*/
+			sprintf(auxiliar_cantidad,"%d",number_file2);
+			strcat(cadena,auxiliar_cantidad);
+			strcat(cadena,"-*\">resultado2.txt");
+			//printf("cadena = %s\n",cadena);
+			system(cadena);
+			
+			fseek(name_file2,0,SEEK_SET);
+			fgets(aux_name,150,name_file2);
+			//printf("aux_name =%s\n",aux_name);
+			i_parcial4=0;
+			largo=strlen(aux_name);
+			
+            while(aux_name[largo-i_parcial4]!='d')
+            {
+                auxiliar3[i_parcial4]=aux_name[largo-i_parcial4-1];
+                i_parcial4++;
+            }
+        
+			largo=strlen(auxiliar3);
+			//printf("auxiliar3 =%s\n",auxiliar3);
+			i_parcial4=0;
+            while(auxiliar3[i_parcial4]!='/')
+            {
+                aux_name2[i_parcial4]=auxiliar3[largo-i_parcial4-2];
+                i_parcial4++;
+            }
+            
+			strcat(aux_name2,"\n\n");
+			strcat(aux_name2,auxiliar4);
+			strcpy(auxiliar4,aux_name2);
+			number_file2--;
+		}
+		fclose(name_file2);
+        
+	}
+	printf("auxiliar4 =%s\n",auxiliar4);
+	ret = telebot_send_message(handle, message.chat->id, auxiliar4, "HTML", false, false, 0, "");
+}
 
 
 int main(int argc, char *argv[])
 {
     //struct teclado tcl;
-    printf("Welcome to Echobot\n");
+	
+	printf("Welcome to Echobot\n");
     char exit[]={"exit"};
     printf("exit=%s\n",exit);
     FILE *fp = fopen("token.txt", "r");
@@ -312,14 +522,57 @@ int main(int argc, char *argv[])
 					ret = telebot_send_message(handle, message.chat->id, "Listado de archivos" , "HTML", false, false, 0, "");
 					flag2=1;
                     flag1=3;
-				}
-                
-				
-				if(flag2==1)
-				{
-					ret = telebot_send_message(handle, message.chat->id, "Se muestra listado" , "HTML", false, false, 0, "");
+					lista=-1;
+					ret = telebot_send_message(handle, message.chat->id, "Se listan los 10 archivos mas nuevos:\n", "HTML", false, false, 0, "");
+					listar_archivos();
+					ret = telebot_send_message(handle, message.chat->id, "Puede avanzar o retroceder con:\n/Anteriores\n/Posteriores\n", "HTML", false, false, 0, "");
 					flag2=0;
 				}
+				
+				if (strstr(message.text, "/Anteriores"))
+				{
+					lista--;
+					listar_archivos();
+				}
+				
+				if (strstr(message.text, "/Posteriores"))
+				{
+					printf("\n\nlista antes de modificar lista = %d\n\n",lista);
+                    lista=lista+1;
+                    printf("\n\nlista despues de modificar lista = %d\n\n",lista);
+					number_file2=number_file2+19;
+                    if(number_file2>lastfile&&lista==0)
+					{
+						printf("Ando por acá y firstfile = %d\n",firstfile);
+                        number_file2=firstfile+9;
+						flag4=1;
+                         printf("\n\nEntre en 1ra condicion\n\n");
+					}
+					
+					if(number_file2>lastfile&&flag4==0)
+					{
+						//number_file2=lastfile-1;
+                        printf("\nNumber file es %d\n",number_file2);
+                        if(number_file2-19<lastfile)
+                        {lista=-1;}
+                        printf("\n\nEntre en 2da condicion\n\n");
+					}
+					
+					if(number_file2>cantidad_archivos)
+					{
+						number_file2=number_file2-cantidad_archivos-1;
+                        printf("\n\nEntre en 3ra condicion\n\n");
+					}
+                    printf("\n\nlista antes de listar archivos = %d\n\n",lista);
+					listar_archivos();
+                    
+                  /*  if(number_file2==lastfile-11)
+                    {
+                        lista=-1;
+                        //listar_archivos();
+                    }*/
+				}
+				
 				
 				if (strstr(message.text, "/Mostrar_actuales"))
 				{
