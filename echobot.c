@@ -394,8 +394,10 @@ void listar_archivos()
 int main(int argc, char *argv[])
 {
     //struct teclado tcl;
-	
-	printf("Welcome to Echobot\n");
+	FILE *file_main;
+    char name_file[400]={""};
+    
+    printf("Welcome to Echobot\n");
     char exit[]={"exit"};
     printf("exit=%s\n",exit);
     FILE *fp = fopen("token.txt", "r");
@@ -453,6 +455,7 @@ int main(int argc, char *argv[])
     
     while (1)
     {
+        char cadena_main[]={"find /home/pi/Desktop/Archivos/ -type f -wholename \"*"};
         telebot_update_t *updates;
         ret = telebot_get_updates(handle, offset, 20, 0, update_types, 0, &updates, &count);
         if (ret != TELEBOT_ERROR_NONE)
@@ -573,7 +576,25 @@ int main(int argc, char *argv[])
                     }*/
 				}
 				
-				
+				if (strstr(message.text, "/00"))
+				{
+                   strcat(cadena_main,message.text);
+                   strcat(cadena_main,"-*\" >resultado2.txt");
+                   printf("cadena main = %s\n",cadena_main);
+                   system(cadena_main);
+                   file_main=fopen("resultado2.txt","r+");
+                    if(file_main==NULL)
+                    {
+                        printf("No se pudo abrir archivo\n");
+                        return(6);
+                    }
+                    fgets(name_file,300,file_main);
+                    printf("va bien\n");
+                    fclose(file_main);
+                    printf("name file = %s\n",name_file);
+                    enviar_archivo(name_file);
+                }   
+                    
 				if (strstr(message.text, "/Mostrar_actuales"))
 				{
 					ret = telebot_send_message(handle, message.chat->id, "Se muestran los parametros actuales" , "HTML", false, false, 0, "");
