@@ -22,10 +22,14 @@ int firstfile;
 char auxiliar_cantidad[50]={""};
 int number_file2;
 int lista;
-
+telebot_update_t *updates;
 
 
 /*/////////////////////////////////////////////////////////////////////////////////////////////////////*/
+int atoifunction(char *character)
+{
+    return(atoi(character));
+}
 
 void obtener_cantidad()
 {
@@ -390,13 +394,165 @@ void listar_archivos()
 	ret = telebot_send_message(handle, message.chat->id, auxiliar4, "HTML", false, false, 0, "");
 }
 
+void mostrar_actuales()
+{
+	char parameters_read[1000]={""};
+	FILE *fparameters;
+	int nro_caracteres;
+	
+	fparameters=fopen("/home/pi/Desktop/Archivos/libreria /RaspberryPi-ADC-DAC-master/build/Parametros.txt","r+");
+	if(fparameters==NULL)
+	{
+		printf("\nNo se pudo abrir el archivo Parametros.txt\n");
+	}
+	
+	nro_caracteres=fread(parameters_read,sizeof(char),1000,fparameters);
+	
+	if(nro_caracteres==0)
+	{
+		printf("\nNo leyó ningún caracter\n");
+	}
+	fclose(fparameters);
+	
+	ret = telebot_send_message(handle, message.chat->id, parameters_read, "HTML", false, false, 0, "");
+	
+}
+
+void modificar_parametros()
+{
+    ret = telebot_send_message(handle, message.chat->id, "Elija el parametro a modificar:\n /Canal_de_disparo\n /Frecuencia_de_muestreo\n /Nivel_de_disparo\n /Muestras_post_trigger\n /Muestras_pre_trigger\n /Cantidad_archivos_almacenables\n" , "HTML", false, false, 0, "");
+    
+}
+
+void modify_parameters(int flag_change)
+{
+	char auxiliar[300];
+	FILE *fparameters;
+	char line[1000]={""};
+	char line1[200]={"1-Canal-"};
+	char line2[200]={"2-Frecuencia-"};
+	char line3[200]={"3-Nivel-"};
+	char line4[200]={"4-Muestras posttrigger-"};
+	char line5[200]={"5-Muestras pretrigger-"};	char line6[200]={"6-Cantidad de archivos-"};
+	int index=0; 
+    int count, offset = -1;
+	int i_parcial;
+	int length,length3;
+	int unusable;
+    char c;
+    message = updates[index].message;
+    strcpy(message.text,line);
+    
+	while(1)
+	{
+        
+        ret=telebot_get_updates(handle, offset, 20, 0, update_types, 0, &updates, &count);
+		
+        message = updates[index].message;
+        printf("\nmessage.text = %s\n",message.text);
+        
+		if(flag_change==1||flag_change==2)
+		{
+            c=message.text[1];
+            unusable=atoifunction(&c);
+			printf("\natoi tiro %d\n",unusable);
+			if((unusable>=1&&unusable<=9)||c=='0')
+			{break;}
+		}
+		else
+		{
+			c=message.text[0];
+            unusable=atoifunction(&c);
+			if(unusable>=1&&unusable<=9)
+			{break;}
+		}
+            
+	}
+	
+	fparameters=fopen("/home/pi/Desktop/Archivos/libreria /RaspberryPi-ADC-DAC-master/build/Parametros.txt","r+");
+	if(fparameters==NULL)
+	{
+		printf("\nNo se pudo abrir el archivo Parametros.txt\n");
+	}
+	
+	switch(flag_change)
+	{
+		case 1:
+		{	strcpy(line,line1);
+			length=strlen(message.text);
+			for(i_parcial=0;i_parcial<length;i_parcial++)
+			{
+				message.text[i_parcial]=message.text[i_parcial+1];
+			}	
+		}	
+		break;
+		case 2:
+		{	strcpy(line,line2);
+			length=strlen(message.text);
+			for(i_parcial=0;i_parcial<length;i_parcial++)
+			{
+				message.text[i_parcial]=message.text[i_parcial+1];
+			}	
+		}
+		break;
+		case 3:
+		{strcpy(line,line3);}
+		break;
+		case 4:
+		{strcpy(line,line4);}	
+		break;				
+		case 5:
+		{strcpy(line,line5);}	
+		break;
+		case 6:
+		{strcpy(line,line6);}	
+		break;
+	}
+	
+	strcat(line,message.text);
+    strcat(line,"\n");
+	
+	for(i_parcial=0;i_parcial<flag_change;i_parcial++)
+	{
+		fgets(auxiliar,250,fparameters);
+	}
+	printf("\nauxiliar = %s\n",auxiliar);
+	
+//	length2=strlen(line);
+	length3=strlen(auxiliar);
+	
+	/*if((length3-length2)>0)
+	{
+		for(i_parcial=0;i_parcial<(length3-length2);i_parcial++)
+		{
+			strcat(line," ");
+		}
+	}*/
+	
+    for(i_parcial=0;i_parcial<(10-flag_change);i_parcial++)
+    {
+        fgets(auxiliar,300,fparameters);
+        length3=length3+strlen(auxiliar);
+        strcat(line,auxiliar);
+    }
+    printf("\nline =%s\n",line);
+    printf("\nlength3 =%d\n",length3);
+    fseek(fparameters,-length3,SEEK_CUR);
+    fputs(line,fparameters);
+	
+	fclose(fparameters);
+	
+	ret = telebot_send_message(handle, message.chat->id, "Aplicar los cambios:\n\n/Aplicar_ahora.\n\n/Tal_vez_luego." , "HTML", false, false, 0, "");
+}
 
 int main(int argc, char *argv[])
 {
     //struct teclado tcl;
 	FILE *file_main;
     char name_file[400]={""};
-    
+	int flag_parameters=0;
+    int flag_change;
+	
     printf("Welcome to Echobot\n");
     char exit[]={"exit"};
     printf("exit=%s\n",exit);
@@ -438,25 +594,9 @@ int main(int argc, char *argv[])
 
     int index, count, offset = -1;
     
-    //telebot_reply_keyboard_markup_t teclado;
-    //char teclado[2][2];
-    //telebot_keyboard_button_t keyboard;
-    //char *keyboard[][4]={{'A'},{'B'},{'C'},{'D'}};
-    //tcl={"A"};
-    //tcl.n=2;
-    //tcl.keyboard={"A"};
-    //struct teclado *tcl;
-    
-    //char buffer[20]={"hola"};
-    //strcpy(&tcl.keyboard[0][0],buffer);
-    
-    //struct teclado *tecla;
-
-    
     while (1)
     {
         char cadena_main[]={"find /home/pi/Desktop/Archivos/ -type f -wholename \"*"};
-        telebot_update_t *updates;
         ret = telebot_get_updates(handle, offset, 20, 0, update_types, 0, &updates, &count);
         if (ret != TELEBOT_ERROR_NONE)
             continue;
@@ -599,14 +739,90 @@ int main(int argc, char *argv[])
 				{
 					ret = telebot_send_message(handle, message.chat->id, "Se muestran los parametros actuales" , "HTML", false, false, 0, "");
                     flag1=3;
+					mostrar_actuales();
+					ret = telebot_send_message(handle, message.chat->id, "\nDesea modificar alguno de los parametros:\n\n/Si\n\n/No\n" , "HTML", false, false, 0, "");
+					flag_parameters=1;
                 }
+				
+					if (strstr(message.text,"/Si"))
+					{
+                        if(flag_parameters==1)
+                        {
+                        //memset(message.text,'\0',1000);
+                        //strcpy(message.text,"/Modificar_parametros");
+						modificar_parametros();
+                        flag_parameters=0;
+                        }
+					}
+					
+					if (strstr(message.text,"/No") && flag_parameters==1)
+					{
+						flag_parameters=0;
+					}
 				
 				if (strstr(message.text, "/Modificar_parametros"))
 				{
-					ret = telebot_send_message(handle, message.chat->id, "Elija el parametro a modificar:\n /Canal_disparo\n /Frecuencia\n /Nivel\n /Post\n /Pre\n /Cantidad\n" , "HTML", false, false, 0, "");
-                    flag1=3;
+					  flag1=3;
+                      modificar_parametros();
                 }
                 
+					if (strstr(message.text, "/Canal_de_disparo"))
+					{
+						ret = telebot_send_message(handle, message.chat->id,"Elija el canal de disparo:\n/0\n\n/1\n\n/2\n\n/3\n\n/4\n\n/5\n\n/6\n\n/7\n", "HTML", false, false, 0, "");
+						flag_change=1;
+						modify_parameters(flag_change);
+					}
+				
+					if (strstr(message.text, "/Frecuencia_de_muestreo"))
+					{
+						ret = telebot_send_message(handle, message.chat->id,"Ingrese la frecuencia de muestreo en muestras por segundo:\n/30000\n\n/15000\n\n/7500\n\n/3750\n\n/2000\n\n/1000\n\n/500\n\n/100\n\n/60\n\n/50\n\n/30\n\n/25\n\n/15\n\n/10\n\n/5\n\n/2\n\n", "HTML", false, false, 0, "");
+						flag_change=2;
+						modify_parameters(flag_change);
+					}
+					
+					if (strstr(message.text, "/Nivel_de_disparo"))
+					{
+						ret = telebot_send_message(handle, message.chat->id,"Ingrese el nivel de disparo en el formato \"U.dc\". Por ejemplo, \"1.38\", en volts.\n", "HTML", false, false, 0, "");
+						flag_change=3;
+						modify_parameters(flag_change);
+					}
+					
+					if (strstr(message.text, "/Muestras_post_trigger"))
+					{
+						ret = telebot_send_message(handle, message.chat->id,"Ingrese la cantidad de muestras post trigger. *Tenga en cuenta que la suma de la cantidad de muestras pre y post disparo no deben superar las 39000 muestras.*", "HTML", false, false, 0, "");
+						flag_change=4;
+						modify_parameters(flag_change);
+					}
+					
+					if (strstr(message.text, "/Muestras_pre_trigger"))
+					{
+						ret = telebot_send_message(handle, message.chat->id,"Ingrese la cantidad de muestras pre trigger. *Tenga en cuenta que la suma de la cantidad de muestras pre y post disparo no deben superar las 39000 muestras.*", "HTML", false, false, 0, "");
+						flag_change=5;
+						modify_parameters(flag_change);
+					}
+					
+					if (strstr(message.text, "/Cantidad_archivos_almacenables"))
+					{
+						ret = telebot_send_message(handle, message.chat->id,"Ingrese la cantidad de archivos almacenables. *Una vez alcanzada la cantidad especificada, los nuevos archivos sobrescribiran a los mas antiguos.* ", "HTML", false, false, 0, "");
+						flag_change=6;
+						modify_parameters(flag_change);
+					}
+                    
+                    printf("flag_change = %d\n",flag_change);
+					
+					if (strstr(message.text, "/Aplicar_ahora"))
+					{
+						if(flag_change>0&&flag_change<7)
+						{
+							printf("\nEnviar señal\n");
+							flag_change=0;
+						}
+					}
+					if (strstr(message.text, "/Tal_vez_luego"))
+					{
+							flag_change=0;
+					}
+					
                 switch(flag1)
 				{
 					case 0:
