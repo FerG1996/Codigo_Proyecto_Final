@@ -5,7 +5,13 @@
 #include <unistd.h>
 #include <telebot.h>
 #include <sys/time.h> 
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <signal.h>
+
 #define SIZE_OF_ARRAY(array) (sizeof(array) / sizeof(array[0]))
+#define FIFO_PATH "/tmp/MI_FIFO"
 
 int flag1=3;
 int flag2=3;
@@ -463,7 +469,7 @@ void modify_parameters(int flag_change)
 		{
 			c=message.text[0];
             unusable=atoifunction(&c);
-			if(unusable>=1&&unusable<=9)
+			if((unusable>=1&&unusable<=9)||c=='0')
 			{break;}
 		}
             
@@ -529,7 +535,7 @@ void modify_parameters(int flag_change)
 		}
 	}*/
 	
-    for(i_parcial=0;i_parcial<(10-flag_change);i_parcial++)
+    for(i_parcial=0;i_parcial<(14-flag_change);i_parcial++)
     {
         fgets(auxiliar,300,fparameters);
         length3=length3+strlen(auxiliar);
@@ -549,11 +555,35 @@ int main(int argc, char *argv[])
 {
     //struct teclado tcl;
 	FILE *file_main;
-    char name_file[400]={""};
+	char name_file[400]={""};
+	char yourpid[20];
 	int flag_parameters=0;
-    int flag_change;
-	
+	int flag_change;
+	int nread,fifo_t,err;
+	int pid_m;
+    
     printf("Welcome to Echobot\n");
+    int pid=getpid();
+    printf("Mi pid es %d\n",pid);
+
+	
+	// FIFO puede ser leida, escrita y ejecutada por:
+	err = mkfifo(FIFO_PATH,0777);
+	if(err == -1) 
+	{printf("\nError al crear FIFO, la FIFO ya existe\n");}
+
+	fifo_t = open(FIFO_PATH,O_RDWR, 0); //Bloqueante
+	if(fifo_t == -1)
+	{printf("\nError al abrir FIFO\n");}
+	
+	nread = read(fifo_t, yourpid, sizeof(yourpid));
+	if(nread == -1) 
+	{printf("\nError al leer de la FIFO\n");}
+	
+	pid_m=atoi(yourpid);
+	printf("El pid del otro proceso es %d\n",pid_m);
+	
+	
     char exit[]={"exit"};
     printf("exit=%s\n",exit);
     FILE *fp = fopen("token.txt", "r");
@@ -808,13 +838,14 @@ int main(int argc, char *argv[])
 						modify_parameters(flag_change);
 					}
                     
-                    printf("flag_change = %d\n",flag_change);
+					printf("flag_change = %d\n",flag_change);
 					
 					if (strstr(message.text, "/Aplicar_ahora"))
 					{
 						if(flag_change>0&&flag_change<7)
 						{
 							printf("\nEnviar señal\n");
+							kill(pid_m,SIGUSR1);
 							flag_change=0;
 						}
 					}
@@ -883,7 +914,7 @@ int main(int argc, char *argv[])
         {printf("\nTodavia no me voy\n");}
         
        
-        
+        close(fifo_t);
         sleep(1);
         printf("\nEl mensaje es: %s\n",message.text);
         int l=strlen(message.text);

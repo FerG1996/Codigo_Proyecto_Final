@@ -20,8 +20,15 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <signal.h>
+#include <sys/wait.h>
+
 #define CS_ADC_1() printf("CS_ADC_1()\n")
 #define CS_ADC_0() printf("CS_ADC_0()\n")
+#define FIFO_PATH "/tmp/MI_FIFO"
 
 /**
  * @brief Simple code to get the voltage on each 8 inputs (single ended) using the ADC1256 and write the input 1 value to output 1 using DAC8552.
@@ -31,13 +38,21 @@
  */
 int canal;
 int frequency;
-int N_post;
-int N_pre;
+int N_post=0;
+int N_pre=0;
 float nivel;
 int cantidad_archivos;
 FILE *fp;																		//Descriptor de archivo que usaremos para el archivo que contiene los parámetros
 FILE *file;	
 int RetCode = 0;
+int level_triggered=0;														//Variable donde guardaremos la combinación equivalente al nivel seleccionado
+int N_total=0;																//N será igual a la cantidad total de muestras a guardar en el archivo, por lo tanto, N=post+pre
+int Init;
+int Id = 0;																	//Variable donde se guarda el identificador de la placa
+int i_general=0;															
+int i_parcial=-1;
+int flag_matrix=0;
+
 
 struct timeval start,current;													//Estructuras donde guardaremos el tiempo
 uint8_t buf[4];
@@ -105,18 +120,26 @@ void frecuencia()																//Función que asigna a ADS1256_DRATE_E el valor
 void parametros()																//Función que obtiene los parámetros guardados en el archivo de configuración
 {
 	char parameter;
-	int largo;
+	//int largo;
 	int i_parcial2=0;
+	
+	fp=fopen("Parametros.txt","r");												//Abrimos el archivo de configuración
+	if(fp==NULL)
+	{
+		printf("No se pudo abrir archivo Parametros.txt\n");
+		fp=fopen("Parametros_respaldo.txt","r");												//Abrimos el archivo de configuración
+	}
+	
 	while(!feof(fp))															//Mientras no se llegue hasta el final del archivo se ejecuta el loop
 	{
-		
 		parameter=fgetc(fp);													//Obtenemos el primer caracter de cada fila
 		fgets(auxiliar,30,fp);													//Obtenemos la oración restante
-		largo=strlen(auxiliar);													//Largo de la cadena almacenada en aux
+		//largo=strlen(auxiliar);													//Largo de la cadena almacenada en aux
+		i_parcial2=0;
 		switch(parameter)																//Según el valor del primer caracter de cada fila es el parámetro a obtener
 		{
 		case '1':																//Parámetro canal
-		{	auxiliar[0]=auxiliar[largo-3];
+		{	auxiliar[0]=auxiliar[7];
 			canal=obtener();
 		}
 		break;
@@ -135,33 +158,38 @@ void parametros()																//Función que obtiene los parámetros guardados 
 		case '3':																//Parámetro nivel
 		{
 			auxiliar[3]='\0';
-			auxiliar[0]=auxiliar[largo-6];
-			auxiliar[1]=auxiliar[largo-4];
-			auxiliar[2]=auxiliar[largo-3];
+			auxiliar[0]=auxiliar[7];
+			auxiliar[1]=auxiliar[9];
+			auxiliar[2]=auxiliar[10];
 			nivel=obtener()/100.0;
 		}
 		break;
 		case '4':																//Parámetro cantidad de muestras post trigger
 		{
 			i_parcial2=0;
-			while(auxiliar[22+i_parcial2]!='\r')
+			while(auxiliar[22+i_parcial2]!='\0')
 			{
 				auxiliar[i_parcial2]=auxiliar[22+i_parcial2];
 				i_parcial2++;
 			}
 			N_post=obtener();
-			
+			if((N_pre+N_post)>39000)
+			{N_pre=18000;
+			 N_post=18000;}
 		}
 		break;
 		case '5': 																//Parámetro cantidad de muestras pre trigger
 		{
 			i_parcial2=0;
-			while(auxiliar[21+i_parcial2]!='\r')
+			while(auxiliar[21+i_parcial2]!='\0')
 			{
 				auxiliar[i_parcial2]=auxiliar[21+i_parcial2];
 				i_parcial2++;
 			}
 			N_pre=obtener();
+			if((N_pre+N_post)>39000)
+			{N_pre=18000;
+			 N_post=18000;}
 		}
 		break;
 		case '6': 
@@ -177,11 +205,13 @@ void parametros()																//Función que obtiene los parámetros guardados 
 		break;
 		}
 	}
+	fclose(fp);
 }
 int archivo()																	//Función para obtener el nombre del archivo 
 {
 	int number_file;
 	int largo2=0;
+	int flag_last=0;
 	FILE *fc;
 	char next_file[40];
 	char current_time[40];
@@ -231,6 +261,7 @@ int archivo()																	//Función para obtener el nombre del archivo
 		system("rm *lastfile*");
 		fc=fopen("lastfile.txt","w+");	
 		fprintf(fc,"%d",number_file);
+		flag_last=1;
 	}
 	else                                                                        //Si no hemos llegado a la máxima cantidad de archivos simplemente sumamos 1 al número del último archivo
 	{
@@ -247,17 +278,29 @@ int archivo()																	//Función para obtener el nombre del archivo
 	
 	gettimeofday(&start, NULL);  												//Función para obtener la fecha y la hora del archivo 
 	fprintf(file,"%s\n",asctime(localtime(&start.tv_sec)));						//Imprimimos la fecha y la hora actual
-	fprintf(file,"Parámetros:\nCanal de disparo:	%d\nFrecuencia de muestreo:	%d\nNivel de disparo=	%f\nCantidad de muestras post trigger =	%d\nCantidad de muestras pre trigger =	%d\nNúmero de archivo =	%d\n",canal,frequency,nivel,N_post,N_pre,number_file-1);	
+	if(flag_last==1)
+	{fprintf(file,"Parámetros:\nCanal de disparo:	%d\nFrecuencia de muestreo:	%d\nNivel de disparo=	%f\nCantidad de muestras post trigger =	%d\nCantidad de muestras pre trigger =	%d\nNúmero de archivo =	%d\n",canal,frequency,nivel,N_post,N_pre,cantidad_archivos);}	
+	else
+	{fprintf(file,"Parámetros:\nCanal de disparo:	%d\nFrecuencia de muestreo:	%d\nNivel de disparo=	%f\nCantidad de muestras post trigger =	%d\nCantidad de muestras pre trigger =	%d\nNúmero de archivo =	%d\n",canal,frequency,nivel,N_post,N_pre,number_file-1);}	
 	fprintf(file,"Volts/cuenta =	5000000/8388608\nCanal 0 (uV)	Canal 1 (uV)	Canal 2 (uV)	Canal 3 (uV)	Canal 4 (uV)	Canal 5 (uV)	Canal 6 (uV)	Canal 7 (uV)	Tiempo: canal 0 (S) +	uS\r\n"); 		//Encabezado de columnas en el excel
 	
 	return 0;
 }
+
+void signal_handler(int unusable)
+{
+	unusable=0;
+	printf("\nunusable=%d\n",unusable);
+	flag_matrix=1;
+}
+
 int lectura(int NbChannels, int AdcValues[][8], ADS1256_SCAN_MODE mode, int loop)	//Función de lectura implementada con matrices y no arreglos dinámicos
 {
 	
 	int i;
 	for (i = 0; i < NbChannels; i++)
 	{
+		
 		ADS1256_WaitDRDY_LOW();														//Espera a que el pin DRDY se ponga en bajo lo que indica que la conversión anterior terminó y puede iniciar la nueva conversión 
 		
 		uint8_t CurChannel = i;
@@ -275,7 +318,9 @@ int lectura(int NbChannels, int AdcValues[][8], ADS1256_SCAN_MODE mode, int loop
 		ADS1256_WriteCmd(CMD_WAKEUP);												//Junto con CMD_SYNC son comandos necesarios antes realizar la medición
 		bsp_DelayUS(MASTER_CLOCK_PERIOD_USEC_TIMES_24);
 		
+		
 		AdcValues[loop][i] = ADS1256_ReadData();									//Lee y realiza la conversión del canal antes especificado
+		
 	}
 	
 	return 0;
@@ -283,24 +328,21 @@ int lectura(int NbChannels, int AdcValues[][8], ADS1256_SCAN_MODE mode, int loop
 
 int main(void)
 {
-	
+	signal(SIGUSR1, signal_handler);
 ////////////////////DEFINICIÓN DE VARIABLES///////////////////////////////////////////////////////////
 	
 	int NChannels = 8;															//Cantidad de canales a leer
-	int MainLoop = 0;															//Variables de control (sacar despues)			
-	
-	int Id = 0;																	//Variable donde se guarda el identificador de la placa
-	int i_general=0;															
+	int MainLoop = 0;															//Variables de control (sacar despues)																	
 	int j_general; 
-	int i_parcial=-1;
 	int flag_triggered=0;
 	int i_referencia;
-	int level_triggered=0;														//Variable donde guardaremos la combinación equivalente al nivel seleccionado
-	int N_total=0;																//N será igual a la cantidad total de muestras a guardar en el archivo, por lo tanto, N=post+pre
+	int pid_m;
+	int err, fifo_d;
+	char mypid[20];
 	
 ////////////////////////INICIO DE PRUEBA/////////////////////////////////////////////////////////////////
 	
-	printf("Iniciando prueba de Fer\r\n");
+	printf("Iniciando prueba\r\n");
 	
 	int initSpi = spi_init();													//Inicializamos la comunicación SPI
 	if (initSpi != 1)
@@ -310,15 +352,9 @@ int main(void)
 	}
 	printf("SPI initialized\r\n");
 	printf("ADC_DAC_Init\r\n");
-	fp=fopen("Parametros.txt","r");												//Abrimos el archivo de configuración
-	if(fp==NULL)
-	{
-		printf("No se pudo abrir archivo\n");
-		exit(1);
-	}
-	parametros();																//Obtenemos los parámetros
 	
-	fclose(fp);																	//Cerramos el archivo de configuración
+	parametros();																//Obtenemos los parámetros
+																				//Cerramos el archivo de configuración
 	
 	printf("canal=%d\n",canal);
 	printf("frecuencia=%d\n",DRATE_E);
@@ -331,9 +367,29 @@ int main(void)
 	level_triggered=nivel*8388608/5;											//Conversion de volts a numero combinacional 
 	N_total=N_pre+N_post;
 	
+	pid_m=getpid();
+	printf("Mi pid es %d\n",pid_m);
+	sprintf(mypid,"%d",pid_m);
+	
+	unlink(FIFO_PATH);    //si la FIFO existe la borro 
+	
+	// FIFO puede ser leida, escrita y ejecutada por:
+	err = mkfifo(FIFO_PATH,0777);
+	if(err == -1) 
+	{printf("\nError al crear FIFO, la FIFO ya existe\n");}
+	
+	fifo_d = open(FIFO_PATH,O_RDWR,0); // O_NONBLOCK
+	if(fifo_d == -1)
+	{printf("\nError al abrir FIFO\n");}
+	
+	err = write(fifo_d, mypid, sizeof(mypid));
+	if(err == -1)
+	{printf("\nError al escribir en FIFO\n");}
+
+	
 	/////////////CONFIGURACIÓN DEL ADC///////////////
 	
-	int Init = ADC_DAC_Init(&Id, ADS1256_GAIN_1, DRATE_E);						//Inicializamos el ADC. En Id obtenemos el numero de identificación del chip que debería ser igual a 3.
+	Init = ADC_DAC_Init(&Id, ADS1256_GAIN_1, DRATE_E);						//Inicializamos el ADC. En Id obtenemos el numero de identificación del chip que debería ser igual a 3.
 	if (Init != 0)																//Elegimos ganancia igual a 1 y la frecuencia de muestreo en muestras/segundo
 	{
 		RetCode = -1;
@@ -354,23 +410,40 @@ int main(void)
 	CS_ADC_1(); 																/* SPI  cs = 1 */
 	
 	printf("init done !\r\n");
-	
+
 ////////////////////////BUCLE PRINCIPAL//////////////////////////////////////////////////////////////////
 	while (1 == 1)
 	{
 		
 		int64_t tiempo[40000][2]={};											//Matriz donde guardaremos el tiempo en segundos y microsegundos
 		int32_t AdcValues[40000][8]={};											//Arreglo donde guardaremos los valores leidos de cada canal(se rellena con los argumentos pasados en ReadAdcValues)
+			
+		flag_matrix=0;
 ///////////////////////BUCLE SECUNDARIO///////////////////////////////////////////////////////////////////
-		
 		while(1)
 		{	
+			if(flag_matrix==1)
+			{
+			 parametros();
+			 write(0,"\n Entre al manejador\n",sizeof("\n Entre al manejador\n"));
+			 level_triggered=nivel*8388608/5;											//Conversion de volts a numero combinacional 
+			 N_total=N_pre+N_post;
+			 Init = ADC_DAC_Init(&Id, ADS1256_GAIN_1, DRATE_E);							//Inicializamos el ADC. En Id obtenemos el numero de identificación del chip que debería ser igual a 3.
+			  if (Init != 0)																//Elegimos ganancia igual a 1 y la frecuencia de muestreo en muestras/segundo
+			  {
+				RetCode = -1;
+			   }
+		     printf("Pase por here\n");
+			 i_general=0;															
+			 i_parcial=-1;
+			 flag_matrix=0;}
+			
 			gettimeofday(&current, NULL);      									// Guardamos el tiempo en la estructura start
 			tiempo[i_general][0]=current.tv_sec;
 			tiempo[i_general][1]=current.tv_usec;
-			
-			lectura(NChannels,AdcValues,SINGLE_ENDED_INPUTS_8,i_general);			//Pasamos el arreglo con los canales a leer, la cant. de canales, el modo (singular o diferencial) y el arreglo donde guardar los valores leidos
-																			
+		
+			lectura(NChannels,AdcValues,SINGLE_ENDED_INPUTS_8,i_general);		//Pasamos el arreglo con los canales a leer, la cant. de canales, el modo (singular o diferencial) y el arreglo donde guardar los valores leidos
+																
 			if(AdcValues[i_general][canal]>=level_triggered)							//Si la medición es mayor o igual al nivel especificado, levantamos la bandera flag_triggered
 			{
 				flag_triggered=1;
@@ -382,6 +455,7 @@ int main(void)
 			}
 			if(i_parcial==N_post+1)
 			{
+				printf("\nPaso por aca\n");	
 				break;
 			}
 			if(i_general==38999)
@@ -397,7 +471,12 @@ int main(void)
 		archivo();																//Obtenemos y abrimos el archivo donde guardaremos las mediciones
 		
 		i_referencia=i_general-N_total;
-		printf("\nAca tambien\n");
+		printf("canal=%d\n",canal);
+		printf("frecuencia=%d\n",DRATE_E);
+		printf("nivel=%f\n",nivel);
+		printf("post=%d\n",N_post);
+		printf("pre=%d\n",N_pre);
+		printf("cantidad_archivos=%d\n",cantidad_archivos);
 		if(i_referencia<0)
 		{
 			for(j_general=38999+i_referencia;j_general<39000;j_general++)
@@ -431,11 +510,12 @@ int main(void)
 		MainLoop++;
 		printf("No hay problema\n");
 		//This loop proves that you can close and re-init pacefully the librairie. Prove it several times (e.g. 3) and then finish the code.
-		if (MainLoop == 1000)
-			break;
+		//if (MainLoop == 1000)
+		//	break;
 		
 	}
-		
+		close(fifo_d);
+	
 		printf("ADC_DAC_Close\r\n");
 		int CloseCode = ADC_DAC_Close();																	//Finalizamos la comunicación SPI y ponemos al conversor en standby
 		if (CloseCode != 0)
