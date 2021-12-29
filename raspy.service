@@ -1,0 +1,16 @@
+[Unit]
+Description= Servicio Medición
+After=multi-user.target
+
+[Service]
+Type=simple
+ExecStart= sh /home/pi/Desktop/script1.sh
+User=pi
+WorkingDirectory= /home/pi/Desktop
+Restart=always
+RestartSec=3
+StandardOutput=syslog
+StandardError=syslog
+
+[Install]
+WantedBy=multi-user.target
